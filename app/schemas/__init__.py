@@ -1,0 +1,2 @@
+"""JSON-LD schema generation"""
+
