@@ -11,20 +11,20 @@ This is a **governance engine, not a content writer**. Every feature must enforc
 
 ## MVP Requirements (8 Weeks)
 
-### Week 1: Database & Structural Guarantees ✅
-- ✅ Unique normalized paths (database-level enforcement)
-- ✅ Canonical uniqueness (one-to-one keyword mapping)
-- ✅ Reverse Silos (3–7) structurally enforced
-- ✅ SILO_DECAY trigger for automatic cleanup
-- ✅ Comprehensive audit trail (system_events)
+### Week 1: Database & Structural Guarantees
+- Unique normalized paths with database-level enforcement
+- Canonical uniqueness through one-to-one keyword mapping
+- Reverse Silos (3–7) with structural enforcement
+- SILO_DECAY trigger for automated content cleanup
+- Comprehensive audit trail via system_events
 
-### Weeks 2-6: Governance Engine ✅
-- ✅ Prevent cannibalization by constraint
-- ✅ Govern AI output before, during, and after generation
-- ✅ Block unsafe publishing
-- ✅ Preserve authority during decommissioning
-- ✅ Week 5: AI Draft Engine with structured outputs, retry-cost safety, and enhanced postcheck
-- ✅ Week 6: Publish & Lifecycle Gates - All 6 gates must pass before publishing
+### Weeks 2-6: Governance Engine
+- Cannibalization prevention through constraint enforcement
+- AI output governance across pre-generation, during-generation, and post-generation stages
+- Publishing safety controls to block unsafe content
+- Authority preservation during content decommissioning
+- Week 5: AI Draft Engine featuring structured outputs, retry-cost safety mechanisms, and enhanced postcheck validation
+- Week 6: Publish & Lifecycle Gates requiring all 6 gates to pass before publishing
 
 ## Architecture
 
@@ -113,70 +113,51 @@ siloq/
 ## Week 5: AI Draft Engine Features
 
 ### Structured Output Generator
-- Enforces structured output schema (body, entities, FAQs, links)
-- Uses OpenAI structured outputs API with fallback
-- Prevents hallucinated links and ensures FAQ schema compliance
+The structured output generator enforces a predefined schema for AI-generated content, including body text, entities, FAQs, and links. It utilizes OpenAI's structured outputs API with automatic fallback mechanisms. The system prevents hallucinated links and ensures strict FAQ schema compliance.
 
 ### Retry-Cost Safety
-- Automatic retries on failures (up to max_retries, default: 3)
-- Cost tracking for all AI API calls
-- Cost limit enforcement per job (default: $10.0)
-- `AI_MAX_RETRY_EXCEEDED` status when retry limit reached
+The system implements automatic retry mechanisms for failed generation attempts, configurable up to a maximum retry count (default: 3). All AI API calls are tracked for cost analysis, with per-job cost limits enforced (default: $10.0). Jobs exceeding retry limits are marked with the `AI_MAX_RETRY_EXCEEDED` status.
 
-### Enhanced Postcheck
-- **Entity Coverage**: Minimum 3 entities required
-- **FAQ Minimum**: Minimum 3 FAQs with question + answer
-- **Link Validation**: No hallucinated links allowed
-- **FAQ Schema**: Each FAQ must have both question and answer fields
+### Enhanced Postcheck Validation
+Post-generation validation includes:
+- **Entity Coverage**: Minimum of 3 entities required per content piece
+- **FAQ Minimum**: Minimum of 3 FAQs, each with both question and answer fields
+- **Link Validation**: Strict validation to prevent hallucinated or invalid links
+- **FAQ Schema Enforcement**: Each FAQ item must contain both question and answer fields
 
 ### Bulk Job Processing
-- Process multiple generation jobs in batch
-- Returns summary with job IDs and errors
+The system supports batch processing of multiple content generation jobs, returning comprehensive summaries including job IDs and any processing errors.
 
 ## Week 6: Publish & Lifecycle Gates
 
 ### Lifecycle Gate Manager
-- **6 Gates**: All must pass before publishing
-  1. Governance checks gate (pre/during/post)
-  2. Schema sync validation gate (JSON-LD matches content)
-  3. Embedding gate (vector embedding required)
-  4. Authority gate (sources required for high authority)
-  5. Content structure gate (title, body, path validation)
-  6. Status gate (must allow publishing)
+The lifecycle gate manager enforces six mandatory gates that must all pass before content can be published:
+1. **Governance Checks Gate**: Validates pre-generation, during-generation, and post-generation governance checks
+2. **Schema Sync Validation Gate**: Ensures JSON-LD schema matches the actual content
+3. **Embedding Gate**: Requires vector embedding for cannibalization tracking
+4. **Authority Gate**: Enforces source URL requirements for high-authority content
+5. **Content Structure Gate**: Validates title, body, and path structure requirements
+6. **Status Gate**: Verifies content status allows publishing
 
 ### Schema Sync Validation
-- Validates JSON-LD schema matches content
-- Checks headline, URL path, and dates
-- Blocks publishing if schema is out of sync
+The schema sync validation ensures JSON-LD structured data remains synchronized with content. It validates headline, URL path, and date fields, blocking publication if any discrepancies are detected.
 
 ### Redirect Enforcement
-- Validates redirect URLs (internal/external)
-- Verifies internal redirect targets exist
-- Enforces redirects on decommission
-- Stores redirect metadata in governance_checks
+Redirect enforcement validates both internal and external redirect URLs. For internal redirects, the system verifies that target pages exist and are published. Redirect metadata is stored in the governance_checks field for audit purposes.
 
 ### Enhanced Decommission
-- Always preserves authority score and source URLs
-- Redirect validation and enforcement
-- Comprehensive audit logging
+The decommission process preserves authority scores and source URLs, validates and enforces redirects, and maintains comprehensive audit logs for all decommissioned content.
 
 ## Code Quality Improvements
 
 ### Type Safety
-- Complete type hints with TypedDict classes
-- UUID type consistency throughout
-- Type-safe return values
+The codebase implements comprehensive type safety through TypedDict classes, ensuring UUID type consistency across all modules and providing type-safe return values throughout the application.
 
 ### Error Handling
-- Custom exception classes with error codes
-- Consistent error response format
-- Exception handlers registered in FastAPI
+Custom exception classes with standardized error codes provide consistent error handling. All exceptions follow a uniform response format and are registered with FastAPI's exception handling system.
 
 ### Architecture
-- Dependency injection for all services
-- Routes organized by domain (sites, pages, jobs, silos)
-- Service layer for business logic
-- Centralized configuration
+The architecture employs dependency injection for all service components, organizes routes by domain (sites, pages, jobs, silos), implements a service layer for business logic separation, and maintains centralized configuration management.
 
 ## Development
 
@@ -193,15 +174,15 @@ ruff check .
 
 ## Recent Changes
 
-- **Week 6**: Publish & Lifecycle Gates - All 6 gates must pass before publishing
-- **Week 5**: AI Draft Engine with structured outputs, retry logic, and enhanced postcheck
-- **Refactoring**: Comprehensive code quality improvements
-  - Type safety with TypedDict classes
-  - Custom exception handling
-  - Dependency injection
-  - Route organization by domain
+- **Week 6**: Implemented Publish & Lifecycle Gates requiring all 6 gates to pass before publishing
+- **Week 5**: Deployed AI Draft Engine with structured outputs, retry logic, and enhanced postcheck validation
+- **Refactoring**: Comprehensive code quality improvements including:
+  - Type safety implementation with TypedDict classes
+  - Custom exception handling framework
+  - Dependency injection architecture
+  - Domain-based route organization
   - Service layer structure
-  - Centralized configuration
+  - Centralized configuration management
 - **Database**: Added governance_checks column to pages table (V009), enhanced silo decay logging (V010)
-- **API**: Routes split into separate modules (sites, pages, jobs, silos)
+- **API**: Reorganized routes into separate modules by domain (sites, pages, jobs, silos)
 
