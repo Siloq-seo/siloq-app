@@ -466,6 +466,46 @@ class ErrorCodeDictionary:
         ],
     )
     
+    # 2025 SEO Alignment: New Lifecycle Gates
+    LIFECYCLE_008: ClassVar[ErrorCode] = ErrorCode(
+        code="LIFECYCLE_008",
+        message="Cannot publish: Experience verification gate failed",
+        doctrine_reference="DOCTRINE-2025-EXPERIENCE-001: First-hand experience requirement",
+        remediation_steps=[
+            "Add specific data points, statistics, or metrics to content",
+            "Include case studies or real-world examples",
+            "Add first-hand anecdotes or personal experiences",
+            "Replace generic statements with concrete evidence",
+            "Ensure content demonstrates real-world experience (minimum 2 experience indicators)",
+        ],
+    )
+    
+    LIFECYCLE_009: ClassVar[ErrorCode] = ErrorCode(
+        code="LIFECYCLE_009",
+        message="Cannot publish: GEO formatting gate failed",
+        doctrine_reference="DOCTRINE-2025-GEO-001: AI citation-ready formatting",
+        remediation_steps=[
+            "Add direct answer at the top of content (first 200 characters)",
+            "Include bullet points for key information (minimum 3 bullets)",
+            "Add clear section headings (minimum 2 headings)",
+            "Include FAQ section with at least 2 question-answer pairs",
+            "Use structured formatting (lists, tables) for easy AI citation",
+        ],
+    )
+    
+    LIFECYCLE_010: ClassVar[ErrorCode] = ErrorCode(
+        code="LIFECYCLE_010",
+        message="Cannot publish: Core Web Vitals gate failed",
+        doctrine_reference="DOCTRINE-2025-MOBILE-001: Mobile-first rendering validation",
+        remediation_steps=[
+            "Add width and height attributes to images to prevent CLS",
+            "Add loading='lazy' to images for better performance",
+            "Optimize images and reduce resource count to improve LCP",
+            "Reduce JavaScript execution time to improve FID",
+            "Ensure mobile viewport is properly configured",
+        ],
+    )
+    
     # Error code registry for efficient lookup
     _ERROR_REGISTRY: ClassVar[Dict[str, ErrorCode]] = {}
     

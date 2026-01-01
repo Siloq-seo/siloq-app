@@ -115,6 +115,14 @@ Requirements:
 4. Only include links to real, existing URLs (no hallucinated links)
 5. All links must have valid URLs and descriptive anchor text
 
+2025 SEO Alignment Requirements:
+6. Start with a direct answer to the main question in the first 200 characters
+7. Use bullet points (- or *) for key information (minimum 3 bullets)
+8. Include clear section headings (## for H2, ### for H3, minimum 2 headings)
+9. Add an FAQ section with at least 2 question-answer pairs
+10. Demonstrate first-hand experience: Include specific data points, case studies, or real-world examples
+11. Use structured formatting (lists, tables) for easy AI citation
+
 Title: {title}"""
 
         try:
@@ -185,6 +193,13 @@ Requirements:
 - Entities: At least 3 entities
 - FAQs: At least 3 FAQs with question and answer
 - Links: Only real URLs, no hallucinated links
+
+2025 SEO Alignment Requirements:
+- Start with a direct answer to the main question in the first 200 characters
+- Use bullet points (- or *) for key information (minimum 3 bullets)
+- Include clear section headings (## for H2, ### for H3, minimum 2 headings)
+- Demonstrate first-hand experience: Include specific data points, case studies, or real-world examples
+- Use structured formatting (lists, tables) for easy AI citation
 
 Title: {title}"""
 

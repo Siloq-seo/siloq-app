@@ -92,13 +92,16 @@ async def check_publish_gates(
     """
     Check all lifecycle gates for a page without publishing.
     
-    Returns gate status for all 6 gates:
+    Returns gate status for all gates:
     1. Governance checks gate
     2. Schema sync validation gate
     3. Embedding gate
     4. Authority gate
     5. Content structure gate
     6. Status gate
+    7. Experience verification gate (2025 SEO)
+    8. GEO formatting gate (2025 SEO)
+    9. Core Web Vitals gate (2025 SEO)
     
     Args:
         page_id: Page UUID
@@ -137,6 +140,9 @@ async def publish_page(
     4. Authority gate
     5. Content structure gate
     6. Status gate
+    7. Experience verification gate (2025 SEO)
+    8. GEO formatting gate (2025 SEO)
+    9. Core Web Vitals gate (2025 SEO)
     
     Unsafe content cannot ship.
     
@@ -176,6 +182,12 @@ async def publish_page(
             error_code = ErrorCodeDictionary.LIFECYCLE_005
         elif "status" in failed_gates:
             error_code = ErrorCodeDictionary.LIFECYCLE_006
+        elif "experience" in failed_gates:
+            error_code = ErrorCodeDictionary.LIFECYCLE_008
+        elif "geo_formatting" in failed_gates:
+            error_code = ErrorCodeDictionary.LIFECYCLE_009
+        elif "web_vitals" in failed_gates:
+            error_code = ErrorCodeDictionary.LIFECYCLE_010
         
         raise LifecycleGateError(
             error_code=error_code or ErrorCodeDictionary.LIFECYCLE_001,

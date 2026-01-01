@@ -24,7 +24,13 @@ This is a **governance engine, not a content writer**. Every feature must enforc
 - Publishing safety controls to block unsafe content
 - Authority preservation during content decommissioning
 - Week 5: AI Draft Engine featuring structured outputs, retry-cost safety mechanisms, and enhanced postcheck validation
-- Week 6: Publish & Lifecycle Gates requiring all 6 gates to pass before publishing
+- Week 6: Publish & Lifecycle Gates requiring all 9 gates to pass before publishing
+
+### 2025 SEO Alignment
+- **First-Hand Experience Verification**: Content must demonstrate real-world experience with specific data points, case studies, or first-hand anecdotes
+- **GEO Formatting (AI-Citation Ready)**: Content formatted for Generative Engine Optimization with direct answers, bullet points, and structured sections for AI citation
+- **Mobile-First Rendering Validation**: Core Web Vitals pre-publish checks (CLS, LCP, FID) to ensure mobile performance is locked in
+- **Future Features Foundation**: Cross-platform entity sync, Agent-Friendly Interface (AFI), and reputation monitoring infrastructure
 
 ## Architecture
 
@@ -90,12 +96,18 @@ siloq/
 │   ├── core/           # Core configuration and utilities
 │   ├── db/             # Database models
 │   ├── governance/     # Governance engine components
-│   │   ├── ai_output.py          # AI output governance
-│   │   ├── structured_output.py  # Week 5: Structured output generator
-│   │   ├── cost_calculator.py     # Week 5: Cost tracking
-│   │   ├── lifecycle_gates.py     # Week 6: Lifecycle gate manager
-│   │   ├── redirect_manager.py    # Week 6: Redirect enforcement
-│   │   └── page_helpers.py        # Page model helper utilities
+│   │   ├── ai_output.py              # AI output governance
+│   │   ├── structured_output.py      # Week 5: Structured output generator
+│   │   ├── cost_calculator.py         # Week 5: Cost tracking
+│   │   ├── lifecycle_gates.py         # Week 6: Lifecycle gate manager
+│   │   ├── redirect_manager.py        # Week 6: Redirect enforcement
+│   │   ├── experience_verification.py  # 2025 SEO: First-hand experience verification
+│   │   ├── geo_formatting.py          # 2025 SEO: GEO/AI citation-ready formatting
+│   │   ├── core_web_vitals.py         # 2025 SEO: Mobile-first rendering validation
+│   │   ├── cross_platform_sync.py     # Future: Cross-platform entity sync
+│   │   ├── agent_friendly_interface.py # Future: Agent-Friendly Interface (AFI)
+│   │   ├── reputation_monitor.py      # Future: Reputation monitoring
+│   │   └── page_helpers.py            # Page model helper utilities
 │   ├── decision/       # Decision engine (preflight/postcheck)
 │   ├── queues/         # Redis-based job processors
 │   ├── schemas/        # Pydantic schemas and JSON-LD generation

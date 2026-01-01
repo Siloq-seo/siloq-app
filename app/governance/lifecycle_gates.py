@@ -2,7 +2,7 @@
 Week 6: Lifecycle Gates - Unsafe content cannot ship.
 
 This module implements the lifecycle gate manager that enforces all safety
-checks before allowing content to be published. All 6 gates must pass for
+checks before allowing content to be published. All gates must pass for
 content to be published.
 
 Gates:
@@ -12,6 +12,9 @@ Gates:
 4. Authority gate - High authority content requires source URLs
 5. Content structure gate - Title, body, and path must be valid
 6. Status gate - Status must allow publishing
+7. Experience verification gate - Content must demonstrate first-hand experience (2025 SEO)
+8. GEO formatting gate - Content must be formatted for AI citation (2025 SEO)
+9. Core Web Vitals gate - Mobile-first rendering validation (2025 SEO)
 
 Example:
     >>> gate_manager = LifecycleGateManager()
@@ -28,6 +31,9 @@ from app.db.models import Page, ContentStatus, SystemEvent
 from app.governance.publishing import PublishingSafety
 from app.schemas.jsonld import JSONLDGenerator
 from app.decision.error_codes import ErrorCodeDictionary
+from app.governance.experience_verification import ExperienceVerifier
+from app.governance.geo_formatting import GEOFormatter
+from app.governance.core_web_vitals import CoreWebVitalsValidator
 from app.types import GateCheckResult, AllGatesResult
 from app.core.config import settings
 
@@ -36,7 +42,7 @@ class LifecycleGateManager:
     """
     Week 6: Manages all lifecycle gates to ensure unsafe content cannot ship.
     
-    This class checks all 6 lifecycle gates before allowing content to be published.
+    This class checks all lifecycle gates before allowing content to be published.
     If any gate fails, publishing is blocked with a detailed error.
     
     Gates:
@@ -46,11 +52,17 @@ class LifecycleGateManager:
     4. Authority gate
     5. Content structure gate
     6. Status gate
+    7. Experience verification gate (2025 SEO)
+    8. GEO formatting gate (2025 SEO)
+    9. Core Web Vitals gate (2025 SEO)
     """
     
     def __init__(self):
         self.publishing_safety = PublishingSafety()
         self.jsonld_generator = JSONLDGenerator()
+        self.experience_verifier = ExperienceVerifier()
+        self.geo_formatter = GEOFormatter()
+        self.web_vitals_validator = CoreWebVitalsValidator()
     
     async def check_all_gates(
         self,
@@ -126,6 +138,33 @@ class LifecycleGateManager:
             blocked = True
             if not reason:
                 reason = status_result.get("reason", "Status does not allow publishing")
+        
+        # Gate 7: Experience Verification Gate (2025 SEO)
+        experience_result = await self._check_experience_gate(page)
+        gates["experience"] = experience_result
+        if not experience_result["passed"]:
+            failed_gates.append("experience")
+            blocked = True
+            if not reason:
+                reason = experience_result.get("reason", "Experience verification failed")
+        
+        # Gate 8: GEO Formatting Gate (2025 SEO)
+        geo_result = await self._check_geo_gate(page)
+        gates["geo_formatting"] = geo_result
+        if not geo_result["passed"]:
+            failed_gates.append("geo_formatting")
+            blocked = True
+            if not reason:
+                reason = geo_result.get("reason", "GEO formatting validation failed")
+        
+        # Gate 9: Core Web Vitals Gate (2025 SEO)
+        web_vitals_result = await self._check_web_vitals_gate(db, page)
+        gates["web_vitals"] = web_vitals_result
+        if not web_vitals_result["passed"]:
+            failed_gates.append("web_vitals")
+            blocked = True
+            if not reason:
+                reason = web_vitals_result.get("reason", "Core Web Vitals validation failed")
         
         all_gates_passed = not blocked and all(
             gate.get("passed", False) for gate in gates.values()
@@ -396,4 +435,26 @@ class LifecycleGateManager:
             "passed": True,
             "details": {"status": page.status.value},
         }
+    
+    async def _check_experience_gate(
+        self,
+        page: Page,
+    ) -> GateCheckResult:
+        """Gate 7: Experience verification - Content must demonstrate first-hand experience."""
+        return await self.experience_verifier.verify_experience(page)
+    
+    async def _check_geo_gate(
+        self,
+        page: Page,
+    ) -> GateCheckResult:
+        """Gate 8: GEO formatting - Content must be formatted for AI citation."""
+        return await self.geo_formatter.validate_geo_formatting(page)
+    
+    async def _check_web_vitals_gate(
+        self,
+        db: AsyncSession,
+        page: Page,
+    ) -> GateCheckResult:
+        """Gate 9: Core Web Vitals - Mobile-first rendering validation."""
+        return await self.web_vitals_validator.validate_web_vitals(page, db)
 

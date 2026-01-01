@@ -51,6 +51,21 @@ class Settings(BaseSettings):
     # Content Structure Settings
     max_title_length: int = 200
     max_slug_length: int = 100
+    
+    # 2025 SEO Alignment Settings
+    # Experience Verification
+    min_experience_indicators: int = 2
+    max_generic_indicators: int = 3
+    
+    # GEO Formatting
+    direct_answer_max_chars: int = 200
+    min_bullet_points: int = 3
+    min_headings: int = 2
+    
+    # Core Web Vitals Thresholds
+    cls_threshold: float = 0.1  # Cumulative Layout Shift
+    lcp_threshold: float = 2.5  # Largest Contentful Paint (seconds)
+    fid_threshold: float = 100.0  # First Input Delay (milliseconds)
 
     class Config:
         env_file = ".env"

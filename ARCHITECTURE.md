@@ -16,7 +16,7 @@ Every feature must enforce:
 ✅ **Prevent cannibalization by constraint** - Vector embeddings detect semantic similarity
 ✅ **Enforce Reverse Silos (3–7) structurally** - Hard limits on silo count per site
 ✅ **Govern AI output before, during, and after generation** - Three-stage governance
-✅ **Block unsafe publishing** - Comprehensive safety checks with 6 lifecycle gates (Week 6)
+✅ **Block unsafe publishing** - Comprehensive safety checks with 9 lifecycle gates (Week 6 + 2025 SEO)
 ✅ **Preserve authority during decommissioning** - Maintain source URLs and authority scores with redirect enforcement (Week 6)
 
 ## System Architecture
@@ -86,16 +86,47 @@ Every feature must enforce:
 - Stores redirect information
 - Creates audit trail
 
-#### Lifecycle Gates (`app/governance/lifecycle_gates.py`) - Week 6
-- **6 Gates** that must all pass before publishing:
+#### Lifecycle Gates (`app/governance/lifecycle_gates.py`) - Week 6 + 2025 SEO
+- **9 Gates** that must all pass before publishing:
   1. Governance checks gate - All governance checks (pre/during/post) must have passed
   2. Schema sync validation gate - JSON-LD schema must match content (title, path, dates)
   3. Embedding gate - Vector embedding must exist for cannibalization tracking
   4. Authority gate - High authority content requires source URLs
   5. Content structure gate - Title, body, and path must be valid
   6. Status gate - Status must allow publishing (APPROVED or DRAFT, not BLOCKED/DECOMMISSIONED)
+  7. **Experience verification gate** (2025 SEO) - Content must demonstrate first-hand experience
+  8. **GEO formatting gate** (2025 SEO) - Content must be formatted for AI citation (direct answers, bullets, FAQs)
+  9. **Core Web Vitals gate** (2025 SEO) - Mobile-first rendering validation (CLS, LCP, FID)
 - Blocks publishing if any gate fails
 - Returns detailed error codes for failed gates
+
+#### Experience Verification (`app/governance/experience_verification.py`) - 2025 SEO
+- Validates first-hand experience indicators (minimum 2 required)
+- Checks for specific data points, statistics, or metrics
+- Validates presence of case studies or real-world examples
+- Detects generic/AI-generated content patterns
+- Enforces Google's E-E-A-T requirements
+
+#### GEO Formatting (`app/governance/geo_formatting.py`) - 2025 SEO
+- Validates direct answer at top of content (first 200 characters)
+- Requires minimum bullet points (3+) for key information
+- Enforces clear section headings (minimum 2 H2/H3)
+- Validates FAQ section with question-answer pairs (minimum 2)
+- Ensures structured formatting for easy AI citation
+- Optimizes content for Google's AI Overviews and AI Mode
+
+#### Core Web Vitals (`app/governance/core_web_vitals.py`) - 2025 SEO
+- Validates Cumulative Layout Shift (CLS) - Layout stability
+- Checks Largest Contentful Paint (LCP) - Loading performance
+- Estimates First Input Delay (FID) - Interactivity
+- Validates mobile viewport configuration
+- Provides image optimization recommendations
+- Ensures mobile-first rendering compliance
+
+#### Future Features Foundation
+- **Cross-Platform Entity Sync** (`app/governance/cross_platform_sync.py`) - Infrastructure for syncing brand entities across TikTok, Reddit, AI assistants
+- **Agent-Friendly Interface** (`app/governance/agent_friendly_interface.py`) - Structured data layer for AI agents to consume without parsing HTML
+- **Reputation Monitor** (`app/governance/reputation_monitor.py`) - Monitors brand sentiment and detects authority leakage from negative feedback
 
 #### Redirect Manager (`app/governance/redirect_manager.py`) - Week 6
 - Validates redirect URLs (internal paths or external URLs)
