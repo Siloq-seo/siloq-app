@@ -15,6 +15,7 @@ Gates:
 7. Experience verification gate - Content must demonstrate first-hand experience (2025 SEO)
 8. GEO formatting gate - Content must be formatted for AI citation (2025 SEO)
 9. Core Web Vitals gate - Mobile-first rendering validation (2025 SEO)
+10. Media integrity gate - Multimedia governance (WebP, alt-text, VideoObject schema) (2026 SEO)
 
 Example:
     >>> gate_manager = LifecycleGateManager()
@@ -34,6 +35,7 @@ from app.decision.error_codes import ErrorCodeDictionary
 from app.governance.experience_verification import ExperienceVerifier
 from app.governance.geo_formatting import GEOFormatter
 from app.governance.core_web_vitals import CoreWebVitalsValidator
+from app.governance.media_integrity import MediaIntegrityValidator
 from app.types import GateCheckResult, AllGatesResult
 from app.core.config import settings
 
@@ -55,6 +57,7 @@ class LifecycleGateManager:
     7. Experience verification gate (2025 SEO)
     8. GEO formatting gate (2025 SEO)
     9. Core Web Vitals gate (2025 SEO)
+    10. Media integrity gate (2026 SEO)
     """
     
     def __init__(self):
@@ -63,6 +66,7 @@ class LifecycleGateManager:
         self.experience_verifier = ExperienceVerifier()
         self.geo_formatter = GEOFormatter()
         self.web_vitals_validator = CoreWebVitalsValidator()
+        self.media_integrity_validator = MediaIntegrityValidator()
     
     async def check_all_gates(
         self,
@@ -165,6 +169,15 @@ class LifecycleGateManager:
             blocked = True
             if not reason:
                 reason = web_vitals_result.get("reason", "Core Web Vitals validation failed")
+        
+        # Gate 10: Media Integrity Gate (2026 SEO)
+        media_result = await self._check_media_integrity_gate(db, page)
+        gates["media_integrity"] = media_result
+        if not media_result["passed"]:
+            failed_gates.append("media_integrity")
+            blocked = True
+            if not reason:
+                reason = media_result.get("reason", "Media integrity validation failed")
         
         all_gates_passed = not blocked and all(
             gate.get("passed", False) for gate in gates.values()
@@ -457,4 +470,12 @@ class LifecycleGateManager:
     ) -> GateCheckResult:
         """Gate 9: Core Web Vitals - Mobile-first rendering validation."""
         return await self.web_vitals_validator.validate_web_vitals(page, db)
+    
+    async def _check_media_integrity_gate(
+        self,
+        db: AsyncSession,
+        page: Page,
+    ) -> GateCheckResult:
+        """Gate 10: Media Integrity - Multimedia governance (WebP, alt-text, VideoObject schema)."""
+        return await self.media_integrity_validator.validate_media_integrity(page, db)
 

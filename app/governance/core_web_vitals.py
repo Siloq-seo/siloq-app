@@ -1,8 +1,14 @@
 """
 2025 SEO Alignment: Mobile-First Rendering Validation (Core Web Vitals)
+2026 Enhancement: Performance Budget Validator with INP and LCP governance
 
 Google has effectively shifted to a "mobile-only" world. This module validates
 Core Web Vitals before publishing to ensure mobile performance is locked in.
+
+2026 Updates:
+- INP (Interaction to Next Paint) validation (replacing FID)
+- Performance Budget Validator - payload size validation (2MB threshold)
+- Enhanced LCP governance beyond basic checks
 """
 import re
 from typing import Dict, List, Optional, Any, Tuple
@@ -20,7 +26,8 @@ class CoreWebVitalsValidator:
     Checks:
     - Cumulative Layout Shift (CLS) - Layout stability
     - Largest Contentful Paint (LCP) - Loading performance
-    - First Input Delay (FID) - Interactivity (estimated from content structure)
+    - Interaction to Next Paint (INP) - Interactivity (2026 update, replaces FID)
+    - Performance Budget - Total payload size validation (2MB threshold)
     - Mobile viewport configuration
     - Image optimization hints
     """
@@ -30,13 +37,18 @@ class CoreWebVitalsValidator:
         # Core Web Vitals thresholds (Google's recommended values)
         self.CLS_THRESHOLD = settings.cls_threshold  # Good: < 0.1, Needs Improvement: 0.1-0.25, Poor: > 0.25
         self.LCP_THRESHOLD = settings.lcp_threshold  # Good: < 2.5s, Needs Improvement: 2.5-4.0s, Poor: > 4.0s
-        self.FID_THRESHOLD = settings.fid_threshold  # Good: < 100ms, Needs Improvement: 100-300ms, Poor: > 300ms
+        self.FID_THRESHOLD = settings.fid_threshold  # Good: < 100ms, Needs Improvement: 100-300ms, Poor: > 300ms (legacy)
+        self.INP_THRESHOLD = getattr(settings, 'inp_threshold', 200.0)  # Good: < 200ms, Needs Improvement: 200-500ms, Poor: > 500ms (2026)
+        
+        # Performance Budget (2026 Enhancement)
+        self.PERFORMANCE_BUDGET_MB = getattr(settings, 'performance_budget_mb', 2.0)  # 2MB default threshold
         
         # These are estimated from content structure
         # Real metrics would come from actual page rendering
         self.estimated_cls = 0.0
         self.estimated_lcp = 0.0
         self.estimated_fid = 0.0
+        self.estimated_inp = 0.0
     
     async def validate_web_vitals(
         self,
@@ -140,22 +152,31 @@ class CoreWebVitalsValidator:
         details["resource_count"] = resource_count
         details["estimated_lcp"] = estimated_lcp
         
-        # Check 4: JavaScript and interactivity (estimate FID)
-        # Heavy JavaScript can delay interactivity
+        # Check 4: JavaScript and interactivity (estimate INP - 2026 update)
+        # Heavy JavaScript and event handlers can delay INP
         script_count = len(re.findall(r'<script[^>]*>', body_lower))
         inline_scripts = len(re.findall(r'<script[^>]*>.*?</script>', body, re.DOTALL | re.IGNORECASE))
         
-        # Estimate FID based on script usage
-        estimated_fid = min(300.0, 50.0 + (script_count * 10) + (inline_scripts * 20))
+        # Count event handlers (onclick, onload, etc.) which impact INP
+        event_handlers = len(re.findall(r'\bon\w+\s*=', body_lower))
         
-        if estimated_fid > self.FID_THRESHOLD:
-            warnings.append(
-                f"Estimated FID ({estimated_fid:.0f}ms) may exceed threshold ({self.FID_THRESHOLD}ms)"
+        # Estimate INP based on script usage and event handlers
+        # INP measures the latency of all interactions, not just first input
+        estimated_inp = min(600.0, 100.0 + (script_count * 15) + (inline_scripts * 25) + (event_handlers * 30))
+        
+        if estimated_inp > self.INP_THRESHOLD:
+            issues.append(
+                f"Estimated INP ({estimated_inp:.0f}ms) exceeds threshold ({self.INP_THRESHOLD}ms)"
             )
+        
+        # Legacy FID estimate (for backward compatibility)
+        estimated_fid = min(300.0, 50.0 + (script_count * 10) + (inline_scripts * 20))
         
         details["script_count"] = script_count
         details["inline_scripts"] = inline_scripts
-        details["estimated_fid"] = estimated_fid
+        details["event_handlers"] = event_handlers
+        details["estimated_inp"] = estimated_inp
+        details["estimated_fid"] = estimated_fid  # Legacy
         
         # Check 5: Font loading and text rendering
         # Web fonts can cause FOIT/FOUT (Flash of Invisible/Unstyled Text)
@@ -166,10 +187,33 @@ class CoreWebVitalsValidator:
         
         details["font_usage"] = font_usage
         
+        # Check 6: Performance Budget Validator (2026 Enhancement)
+        # Calculate estimated total payload size (content + resources)
+        estimated_payload_bytes = self._estimate_payload_size(body, image_count, resource_count)
+        estimated_payload_mb = estimated_payload_bytes / (1024 * 1024)
+        
+        details["estimated_payload_bytes"] = estimated_payload_bytes
+        details["estimated_payload_mb"] = round(estimated_payload_mb, 2)
+        details["performance_budget_mb"] = self.PERFORMANCE_BUDGET_MB
+        
+        # If payload exceeds budget, trigger warning/block
+        if estimated_payload_mb > self.PERFORMANCE_BUDGET_MB:
+            issues.append(
+                f"Estimated payload ({estimated_payload_mb:.2f}MB) exceeds performance budget "
+                f"({self.PERFORMANCE_BUDGET_MB}MB). This will negatively impact LCP."
+            )
+            details["performance_budget_exceeded"] = True
+        else:
+            details["performance_budget_exceeded"] = False
+        
         # Overall assessment
-        # Block publishing only if CLS is definitely problematic
-        # LCP and FID are warnings since they require actual rendering to measure accurately
-        passed = estimated_cls <= self.CLS_THRESHOLD
+        # Block publishing if CLS or INP exceeds thresholds, or if payload budget is exceeded
+        # LCP is a warning since it requires actual rendering to measure accurately
+        passed = (
+            estimated_cls <= self.CLS_THRESHOLD
+            and estimated_inp <= self.INP_THRESHOLD
+            and estimated_payload_mb <= self.PERFORMANCE_BUDGET_MB
+        )
         
         if not passed:
             return {
@@ -213,10 +257,52 @@ class CoreWebVitalsValidator:
                 "Optimize images and reduce resource count to improve LCP"
             )
         
+        if details.get("estimated_inp", 0) > self.INP_THRESHOLD:
+            recommendations.append(
+                "Reduce JavaScript execution time and event handler complexity to improve INP"
+            )
+        
         if details.get("estimated_fid", 0) > self.FID_THRESHOLD:
             recommendations.append(
-                "Reduce JavaScript execution time to improve FID"
+                "Reduce JavaScript execution time to improve FID (legacy metric)"
+            )
+        
+        if details.get("performance_budget_exceeded", False):
+            recommendations.append(
+                f"Reduce payload size (currently {details.get('estimated_payload_mb', 0):.2f}MB) "
+                f"to meet performance budget ({self.PERFORMANCE_BUDGET_MB}MB)"
             )
         
         return recommendations
+    
+    def _estimate_payload_size(
+        self,
+        body: str,
+        image_count: int,
+        resource_count: int,
+    ) -> int:
+        """
+        Estimate total payload size for Performance Budget validation.
+        
+        Args:
+            body: Page body content
+            image_count: Number of images
+            resource_count: Number of resources (scripts, stylesheets, etc.)
+            
+        Returns:
+            Estimated payload size in bytes
+        """
+        # Base content size
+        content_bytes = len(body.encode('utf-8'))
+        
+        # Estimate image sizes (average ~100KB per image, conservative)
+        estimated_image_bytes = image_count * 100 * 1024
+        
+        # Estimate script/stylesheet sizes (average ~50KB per resource)
+        estimated_resource_bytes = resource_count * 50 * 1024
+        
+        # Total payload estimate
+        total_bytes = content_bytes + estimated_image_bytes + estimated_resource_bytes
+        
+        return total_bytes
 

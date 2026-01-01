@@ -65,7 +65,11 @@ class Settings(BaseSettings):
     # Core Web Vitals Thresholds
     cls_threshold: float = 0.1  # Cumulative Layout Shift
     lcp_threshold: float = 2.5  # Largest Contentful Paint (seconds)
-    fid_threshold: float = 100.0  # First Input Delay (milliseconds)
+    fid_threshold: float = 100.0  # First Input Delay (milliseconds, legacy)
+    
+    # 2026 Performance Enhancements
+    inp_threshold: float = 200.0  # Interaction to Next Paint (milliseconds)
+    performance_budget_mb: float = 2.0  # Performance budget in MB (payload size limit)
 
     class Config:
         env_file = ".env"
