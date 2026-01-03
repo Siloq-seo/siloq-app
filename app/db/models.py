@@ -76,6 +76,10 @@ class Page(Base):
     # Governance checks (Week 5 Refactor)
     governance_checks = Column(JSONB, default=lambda: {})
     
+    # Page type (V1 Stress Test: Product, Service_Core, Blog, Supporting)
+    # Stored in governance_checks for flexibility, can be migrated to column later
+    # page_type = Column(String, nullable=True)  # Future: Add as column if needed
+    
     # Vector embedding for cannibalization detection
     embedding = Column(Vector(1536))
     

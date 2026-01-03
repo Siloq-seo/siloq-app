@@ -42,15 +42,16 @@ async def submit_onboarding_questionnaire(
     errors = []
     
     # Validate and process questionnaire
-    # Check for local details warning (critical)
-    if not questionnaire.entity_injection.local_landmarks_neighborhoods or \
-       len(questionnaire.entity_injection.local_landmarks_neighborhoods) < 3 or \
-       not questionnaire.entity_injection.local_law_regional_term or \
-       not questionnaire.entity_injection.local_law_regional_term.strip():
-        warnings.append(
-            "WARNING: Without local details, ranking potential drops 50%. "
-            "Please provide 3 local landmarks/neighborhoods and 1 local law/regional term."
-        )
+    # Check for local details warning (critical) - only for local scope
+    if questionnaire.entity_injection.scope.value == "local":
+        if not questionnaire.entity_injection.local_landmarks_neighborhoods or \
+           len(questionnaire.entity_injection.local_landmarks_neighborhoods) < 3 or \
+           not questionnaire.entity_injection.local_law_regional_term or \
+           not questionnaire.entity_injection.local_law_regional_term.strip():
+            warnings.append(
+                "WARNING: Without local details, ranking potential drops 50%. "
+                "Please provide 3 local landmarks/neighborhoods and 1 local law/regional term."
+            )
     
     # Get or create site
     site = None
@@ -85,7 +86,7 @@ async def submit_onboarding_questionnaire(
     # Store onboarding data
     onboarding_data = {
         "brand_compliance": {
-            "brand_voice_adjectives": questionnaire.brand_compliance.brand_voice_adjectives,
+            "brand_voice": questionnaire.brand_compliance.brand_voice.value,
             "forbidden_words_phrases": questionnaire.brand_compliance.forbidden_words_phrases,
         },
         "silo_architecture": {
@@ -93,6 +94,7 @@ async def submit_onboarding_questionnaire(
             "customer_problems_questions": questionnaire.silo_architecture.customer_problems_questions,
         },
         "entity_injection": {
+            "scope": questionnaire.entity_injection.scope.value,
             "local_landmarks_neighborhoods": questionnaire.entity_injection.local_landmarks_neighborhoods,
             "local_law_regional_term": questionnaire.entity_injection.local_law_regional_term,
         },

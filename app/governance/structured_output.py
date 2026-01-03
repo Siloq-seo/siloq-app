@@ -2,6 +2,7 @@
 from typing import Dict, List, Optional, Any, Tuple
 from pydantic import BaseModel, Field
 from openai import AsyncOpenAI
+import re
 
 
 class StructuredContent(BaseModel):
@@ -174,6 +175,164 @@ Good: "Our trucks are frequently spotted on [Highway], heading from Downtown {ci
 
 Anti-Thinness Rule: Every mention of a location must be tied to the service. Explain why that location matters (e.g., "Older homes in [Neighborhood] often face specific plumbing issues like [Issue].")"""
     
+    def _get_content_scope(
+        self,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> Optional[str]:
+        """
+        Get content scope from metadata.
+        
+        Returns:
+            'local' or 'national' or None
+        """
+        if not metadata:
+            return None
+        
+        scope = metadata.get("scope") or metadata.get("content_scope")
+        if scope:
+            return str(scope).lower()
+        
+        return None
+    
+    def _get_brand_voice(
+        self,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> Optional[str]:
+        """
+        Get brand voice from metadata.
+        
+        Returns:
+            'voice_expert', 'voice_neighbor', 'voice_hype', or None
+        """
+        if not metadata:
+            return None
+        
+        voice = metadata.get("brand_voice") or metadata.get("voice")
+        if voice:
+            return str(voice).lower()
+        
+        return None
+    
+    def _get_voice_system_prompt(self, voice: str) -> str:
+        """
+        Get system prompt addition based on brand voice enum.
+        
+        Args:
+            voice: Brand voice enum value
+            
+        Returns:
+            Voice-specific prompt addition
+        """
+        voice_lower = voice.lower()
+        
+        if voice_lower == "voice_expert":
+            return """Tone Guidelines (VOICE_EXPERT):
+- Use authoritative, technical language
+- Demonstrate deep expertise and knowledge
+- Use industry terminology appropriately
+- Provide detailed explanations and technical specifications
+- Maintain professional, credible tone throughout"""
+        
+        elif voice_lower == "voice_neighbor":
+            return """Tone Guidelines (VOICE_NEIGHBOR):
+- Use warm, friendly "You/We" language
+- Write as if speaking to a neighbor or friend
+- Include local references and relatable examples
+- Use conversational tone, avoid overly formal language
+- Show empathy and understanding of customer needs"""
+        
+        elif voice_lower == "voice_hype":
+            return """Tone Guidelines (VOICE_HYPE):
+- Use energetic, sales-focused language
+- Create excitement and urgency
+- Highlight benefits and outcomes
+- Use action-oriented, compelling language
+- Focus on transformation and results"""
+        
+        return ""
+    
+    def _insert_image_placeholders(self, content: str) -> str:
+        """
+        Insert image placeholder tags every ~300 words.
+        
+        Args:
+            content: Content body text
+            
+        Returns:
+            Content with image placeholder tags inserted
+        """
+        # Split content into words
+        words = content.split()
+        word_count = len(words)
+        
+        # Don't insert if content is too short
+        if word_count < 200:
+            return content
+        
+        # Calculate number of placeholders needed (every ~300 words)
+        placeholder_interval = 300
+        num_placeholders = max(1, (word_count // placeholder_interval))
+        
+        # Split by paragraphs for better insertion points
+        paragraphs = content.split('\n\n')
+        
+        result_parts = []
+        current_word_count = 0
+        placeholder_count = 0
+        target_word_count = placeholder_interval
+        
+        for i, para in enumerate(paragraphs):
+            para_words = len(para.split())
+            result_parts.append(para)
+            current_word_count += para_words
+            
+            # Insert placeholder if we've passed the threshold
+            if current_word_count >= target_word_count and placeholder_count < num_placeholders:
+                # Generate descriptive placeholder based on surrounding content
+                # Use last few words of current paragraph for context
+                para_words_list = para.split()
+                context_words = para_words_list[-10:] if len(para_words_list) >= 10 else para_words_list
+                context = " ".join(context_words)
+                placeholder = f"\n\n[IMAGE_PLACEHOLDER: {context} - Add relevant image here]\n\n"
+                result_parts.append(placeholder)
+                placeholder_count += 1
+                target_word_count = placeholder_interval * (placeholder_count + 1)
+        
+        return "\n\n".join(result_parts)
+    
+    def _build_national_use_case_prompt(
+        self,
+        service: str,
+    ) -> str:
+        """
+        Build use case injection prompt for national scope.
+        
+        Args:
+            service: Service/product type
+            
+        Returns:
+            Use case prompt string
+        """
+        return f"""CONTEXT: You are providing {service} services/products for a national audience.
+
+STEP 1: USE CASE IDENTIFICATION (Do not skip) Before writing the body content, identify and list use cases for {service}:
+
+1. 3 Primary Use Cases (e.g., "Best for winter", "Formal wear", "Outdoor activities").
+2. 2 Target Scenarios (e.g., "Professional settings", "Casual weekend wear").
+3. 1 Key Benefit or Feature that differentiates this {service}.
+
+Constraint: Do not mention specific cities or locations. Focus on use cases, scenarios, and benefits.
+
+STEP 2: CONTENT GENERATION Write the content page for {service}.
+
+Integration: Do not just list the use cases from Step 1. Weave them naturally into the narrative.
+
+Bad: "This {service} is good for winter. It is also good for formal wear."
+
+Good: "Designed for harsh winter conditions, this {service} features [specific feature] that makes it ideal for [use case]. When transitioning to formal settings, [specific benefit] ensures [outcome]."
+
+Anti-Thinness Rule: Every mention of a use case must be tied to specific features or benefits. Explain why that use case matters (e.g., "[Use Case] requires [Feature] because [Reason].")"""
+    
     async def generate_structured_content(
         self,
         prompt: str,
@@ -200,8 +359,15 @@ Anti-Thinness Rule: Every mention of a location must be tied to the service. Exp
         Raises:
             ValueError: If structured output validation fails
         """
-        # Extract city and service for automated entity injection
-        city, service = self._extract_city_service(prompt, title, metadata)
+        # Get content scope from metadata
+        scope = self._get_content_scope(metadata)
+        
+        # Extract city and service for automated entity injection (only if local scope)
+        city, service = self._extract_city_service(prompt, title, metadata) if scope != "national" else (None, None)
+        
+        # Get brand voice for tone governance
+        voice = self._get_brand_voice(metadata)
+        voice_prompt = self._get_voice_system_prompt(voice) if voice else ""
         
         # Build base system prompt
         base_prompt = """You are a professional SEO content writer. Write comprehensive, well-structured content that preserves intent and authority.
@@ -212,24 +378,41 @@ Requirements:
 3. Include at least 3 FAQs with question and answer
 4. Only include links to real, existing URLs (no hallucinated links)
 5. All links must have valid URLs and descriptive anchor text
+6. Insert [IMAGE_PLACEHOLDER: detailed description] tags approximately every 300 words to prevent visual thinness
 
 2025 SEO Alignment Requirements:
-6. Start with a direct answer to the main question in the first 200 characters
-7. Use bullet points (- or *) for key information (minimum 3 bullets)
-8. Include clear section headings (## for H2, ### for H3, minimum 2 headings)
-9. Add an FAQ section with at least 2 question-answer pairs
-10. Demonstrate first-hand experience: Include specific data points, case studies, or real-world examples
-11. Use structured formatting (lists, tables) for easy AI citation"""
+7. Start with a direct answer to the main question in the first 200 characters
+8. Use bullet points (- or *) for key information (minimum 3 bullets)
+9. Include clear section headings (## for H2, ### for H3, minimum 2 headings)
+10. Add an FAQ section with at least 2 question-answer pairs
+11. Demonstrate first-hand experience: Include specific data points, case studies, or real-world examples
+12. Use structured formatting (lists, tables) for easy AI citation"""
         
-        # Add research step if city/service are available
-        if city and service:
+        # Add voice prompt if available
+        if voice_prompt:
+            base_prompt += f"\n\n{voice_prompt}"
+        
+        # Add scope-specific research step
+        if scope == "local" and city and service:
+            # Local scope: Use geo-logic (landmarks, neighborhoods)
             research_prompt = self._build_research_step_prompt(city, service)
             system_prompt = f"""{base_prompt}
 
 {research_prompt}
 
 Title: {title}"""
+        elif scope == "national" and service:
+            # National scope: Use use case injection (NO city insertion)
+            use_case_prompt = self._build_national_use_case_prompt(service)
+            system_prompt = f"""{base_prompt}
+
+{use_case_prompt}
+
+CRITICAL CONSTRAINT: Do NOT mention any specific cities, neighborhoods, or local landmarks. This is national content. Focus on use cases, scenarios, and benefits only.
+
+Title: {title}"""
         else:
+            # No scope or missing data: Use base prompt
             system_prompt = f"""{base_prompt}
 
 Title: {title}"""
@@ -255,6 +438,10 @@ Title: {title}"""
                 if parsed_content:
                     # Validate structured content
                     structured = StructuredContent(**parsed_content.model_dump())
+                    
+                    # Insert image placeholders
+                    structured.body = self._insert_image_placeholders(structured.body)
+                    
                     return structured
             else:
                 # Structured outputs API not available, use fallback
@@ -281,8 +468,15 @@ Title: {title}"""
         
         This is used when structured outputs API is not available.
         """
-        # Extract city and service for automated entity injection
-        city, service = self._extract_city_service(prompt, title, metadata)
+        # Get content scope from metadata
+        scope = self._get_content_scope(metadata)
+        
+        # Extract city and service for automated entity injection (only if local scope)
+        city, service = self._extract_city_service(prompt, title, metadata) if scope != "national" else (None, None)
+        
+        # Get brand voice for tone governance
+        voice = self._get_brand_voice(metadata)
+        voice_prompt = self._get_voice_system_prompt(voice) if voice else ""
         
         # Build base system prompt
         base_prompt = """You are a professional SEO content writer. Write comprehensive, well-structured content.
@@ -307,6 +501,7 @@ Requirements:
 - Entities: At least 3 entities
 - FAQs: At least 3 FAQs with question and answer
 - Links: Only real URLs, no hallucinated links
+- Insert [IMAGE_PLACEHOLDER: detailed description] tags approximately every 300 words to prevent visual thinness
 
 2025 SEO Alignment Requirements:
 - Start with a direct answer to the main question in the first 200 characters
@@ -315,15 +510,31 @@ Requirements:
 - Demonstrate first-hand experience: Include specific data points, case studies, or real-world examples
 - Use structured formatting (lists, tables) for easy AI citation"""
         
-        # Add research step if city/service are available
-        if city and service:
+        # Add voice prompt if available
+        if voice_prompt:
+            base_prompt += f"\n\n{voice_prompt}"
+        
+        # Add scope-specific research step
+        if scope == "local" and city and service:
+            # Local scope: Use geo-logic (landmarks, neighborhoods)
             research_prompt = self._build_research_step_prompt(city, service)
             system_prompt = f"""{base_prompt}
 
 {research_prompt}
 
 Title: {title}"""
+        elif scope == "national" and service:
+            # National scope: Use use case injection (NO city insertion)
+            use_case_prompt = self._build_national_use_case_prompt(service)
+            system_prompt = f"""{base_prompt}
+
+{use_case_prompt}
+
+CRITICAL CONSTRAINT: Do NOT mention any specific cities, neighborhoods, or local landmarks. This is national content. Focus on use cases, scenarios, and benefits only.
+
+Title: {title}"""
         else:
+            # No scope or missing data: Use base prompt
             system_prompt = f"""{base_prompt}
 
 Title: {title}"""
@@ -350,7 +561,12 @@ Title: {title}"""
                 content_text = content_text.split("```")[1].split("```")[0].strip()
             
             parsed_data = json.loads(content_text)
-            return StructuredContent(**parsed_data)
+            structured = StructuredContent(**parsed_data)
+            
+            # Insert image placeholders
+            structured.body = self._insert_image_placeholders(structured.body)
+            
+            return structured
             
         except (json.JSONDecodeError, ValueError) as e:
             raise ValueError(f"Failed to parse AI output as structured content: {str(e)}")

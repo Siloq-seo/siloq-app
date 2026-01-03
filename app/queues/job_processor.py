@@ -132,8 +132,12 @@ class ContentGenerationProcessor:
                 prompt = job_data.get("prompt", f"Write comprehensive content about: {page.title}")
                 
                 try:
-                    # Extract metadata for entity injection
+                    # Extract metadata for entity injection and voice governance
                     metadata = job_data.get("metadata", {})
+                    
+                    # Get onboarding data from system_events if available
+                    # This would be stored when onboarding questionnaire is submitted
+                    # For now, metadata should contain scope and brand_voice if available
                     
                     structured_content = await self.structured_generator.generate_structured_content(
                         prompt=prompt,
@@ -143,6 +147,14 @@ class ContentGenerationProcessor:
                         max_tokens=4000,
                         metadata=metadata,
                     )
+                    
+                    # Store page_type in governance_checks for decay logic
+                    # Determine page_type from metadata or infer from content
+                    page_type = metadata.get("page_type") or metadata.get("pageType")
+                    if page_type:
+                        if not page.governance_checks:
+                            page.governance_checks = {}
+                        page.governance_checks["page_type"] = page_type
                     
                     # Calculate cost for structured generation
                     # Note: We need to track this from the actual API response

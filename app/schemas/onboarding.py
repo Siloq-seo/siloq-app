@@ -5,38 +5,33 @@ The "Dummy-Proof" Input structure for plugin onboarding wizard.
 Forces users to provide data required by Week 5 and Week 3 code.
 """
 from typing import List, Optional
+from enum import Enum
 from pydantic import BaseModel, Field, validator, root_validator
+
+
+class ContentScope(str, Enum):
+    """Content scope: Local (service-based) or National (e-commerce)"""
+    LOCAL = "local"
+    NATIONAL = "national"
+
+
+class BrandVoice(str, Enum):
+    """Standardized brand voice options"""
+    VOICE_EXPERT = "voice_expert"  # Authoritative, Technical
+    VOICE_NEIGHBOR = "voice_neighbor"  # Warm, "You/We" language, Local
+    VOICE_HYPE = "voice_hype"  # Energetic, Sales-focused
 
 
 class BrandComplianceInput(BaseModel):
     """A. THE WHO (Brand & Compliance)"""
-    brand_voice_adjectives: List[str] = Field(
+    brand_voice: BrandVoice = Field(
         ...,
-        min_items=3,
-        max_items=3,
-        description="Describe brand voice (exactly 3 adjectives)"
+        description="Brand voice style (dropdown selection)"
     )
     forbidden_words_phrases: List[str] = Field(
         default=[],
         description="Forbidden words/phrases (Legal/Compliance)"
     )
-    
-    @validator("brand_voice_adjectives")
-    def validate_brand_voice(cls, v):
-        """Ensure adjectives are not empty or generic."""
-        if len(v) != 3:
-            raise ValueError("Must provide exactly 3 brand voice adjectives")
-        
-        # Block generic one-word answers
-        generic_words = ["good", "great", "nice", "best", "top", "quality", "professional"]
-        for adj in v:
-            adj_lower = adj.lower().strip()
-            if not adj_lower or len(adj_lower) < 3:
-                raise ValueError(f"Adjective '{adj}' is too short or empty")
-            if adj_lower in generic_words:
-                raise ValueError(f"Adjective '{adj}' is too generic. Be more specific.")
-        
-        return v
 
 
 class SiloArchitectureInput(BaseModel):
@@ -90,41 +85,47 @@ class SiloArchitectureInput(BaseModel):
 
 class EntityInjectionInput(BaseModel):
     """C. THE WHERE (Entity Injection - Critical)"""
-    local_landmarks_neighborhoods: List[str] = Field(
+    scope: ContentScope = Field(
         ...,
+        description="Content scope: Local (service-based) or National (e-commerce)"
+    )
+    local_landmarks_neighborhoods: Optional[List[str]] = Field(
+        None,
         min_items=3,
         max_items=3,
-        description="List 3 specific local landmarks/neighborhoods"
+        description="List 3 specific local landmarks/neighborhoods (required if scope=local)"
     )
-    local_law_regional_term: str = Field(
-        ...,
+    local_law_regional_term: Optional[str] = Field(
+        None,
         min_length=5,
-        description="List 1 local law or regional term"
+        description="List 1 local law or regional term (required if scope=local)"
     )
-    
-    @validator("local_landmarks_neighborhoods")
-    def validate_landmarks(cls, v):
-        """Ensure landmarks are specific."""
-        if len(v) != 3:
-            raise ValueError("Must provide exactly 3 local landmarks/neighborhoods")
-        
-        for i, landmark in enumerate(v, 1):
-            landmark = landmark.strip()
-            if not landmark or len(landmark) < 5:
-                raise ValueError(f"Landmark/Neighborhood {i} is too short. Must be specific (e.g., 'Pike Place Market' not 'Market')")
-        
-        return v
     
     @root_validator
-    def validate_local_details_warning(cls, values):
-        """Show warning if local details are missing."""
+    def validate_scope_requirements(cls, values):
+        """Validate requirements based on scope."""
+        scope = values.get("scope")
         landmarks = values.get("local_landmarks_neighborhoods", [])
         law_term = values.get("local_law_regional_term", "")
         
-        if not landmarks or len(landmarks) < 3 or not law_term:
-            # This validation will show warning but not block
-            # The warning message will be shown in the API response
-            pass
+        if scope == ContentScope.LOCAL:
+            # Local scope requires landmarks and regional term
+            if not landmarks or len(landmarks) < 3:
+                raise ValueError("Local scope requires 3 local landmarks/neighborhoods")
+            if not law_term or not law_term.strip():
+                raise ValueError("Local scope requires 1 local law or regional term")
+            
+            # Validate landmark quality
+            for i, landmark in enumerate(landmarks, 1):
+                landmark = landmark.strip()
+                if not landmark or len(landmark) < 5:
+                    raise ValueError(f"Landmark/Neighborhood {i} is too short. Must be specific (e.g., 'Pike Place Market' not 'Market')")
+        elif scope == ContentScope.NATIONAL:
+            # National scope should not have local landmarks
+            if landmarks:
+                raise ValueError("National scope cannot have local landmarks. Remove landmarks for national content.")
+            if law_term:
+                raise ValueError("National scope cannot have local law/regional term. Remove for national content.")
         
         return values
 
@@ -160,11 +161,12 @@ class OnboardingQuestionnaire(BaseModel):
     site_id: Optional[str] = Field(None, description="Optional site ID if updating existing site")
     
     @root_validator
-    def validate_local_details_warning(cls, values):
-        """Show warning if local details are missing (critical for ranking)."""
+    def validate_scope_consistency(cls, values):
+        """Validate scope consistency across questionnaire."""
         entity_injection = values.get("entity_injection")
         
-        if entity_injection:
+        if entity_injection and entity_injection.scope == ContentScope.LOCAL:
+            # Local scope: Show warning if local details missing
             landmarks = entity_injection.local_landmarks_neighborhoods
             law_term = entity_injection.local_law_regional_term
             
