@@ -7,6 +7,7 @@ from app.core.database import get_db
 from app.db.models import Site
 from app.api.dependencies import get_silo_enforcer
 from app.schemas.sites import SiloCreate, SiloResponse
+from app.governance.silo_batch_publishing import SiloBatchPublisher
 
 router = APIRouter(prefix="/sites/{site_id}/silos", tags=["silos"])
 
@@ -58,44 +59,83 @@ async def create_silo(
     return silo
 
 
-@router.get("")
-async def get_silos(
+@router.post("/{silo_id}/publish-batch")
+async def publish_silo_batch(
     site_id: UUID,
+    silo_id: UUID,
     db: AsyncSession = Depends(get_db),
-    silo_enforcer = Depends(get_silo_enforcer),
 ):
     """
-    Get all silos for a site.
+    Publish entire silo as a batch (atomic unit).
+    
+    Strategy Update: The "Atomic Unit" of publishing is the SILO, not the page.
+    When a silo is finalized, publish all pages simultaneously so they link instantly.
+    
+    Site Age Governor:
+    - Brand New Sites (<1 Year): Heartbeat Drip - 1 Full Silo per Week
+    - Established Sites (>1 Year): No speed limit - publish immediately when finalized
     
     Args:
         site_id: Site UUID
+        silo_id: Silo UUID
         db: Database session
-        silo_enforcer: Reverse silo enforcer service
         
     Returns:
-        List of silos for the site
+        Batch publishing result with published pages
+        
+    Raises:
+        HTTPException: 404 if site/silo not found, 400 if cannot publish
     """
-    silos = await silo_enforcer.get_silos_for_site(db, str(site_id))
-    return silos
+    site = await db.get(Site, site_id)
+    if not site:
+        raise HTTPException(status_code=404, detail="Site not found")
+    
+    publisher = SiloBatchPublisher()
+    result = await publisher.publish_silo_batch(db, str(silo_id))
+    
+    if not result.get("success"):
+        raise HTTPException(
+            status_code=400,
+            detail=result.get("reason", "Cannot publish silo"),
+        )
+    
+    return result
 
 
-@router.get("/validate")
-async def validate_silo_structure(
+@router.get("/{silo_id}/publish-status")
+async def get_silo_publish_status(
     site_id: UUID,
+    silo_id: UUID,
     db: AsyncSession = Depends(get_db),
-    silo_enforcer = Depends(get_silo_enforcer),
 ):
     """
-    Validate silo structure (3-7 silos).
+    Get publishing status for a silo.
+    
+    Returns comprehensive status including:
+    - Finalization status
+    - Page readiness (gates passed)
+    - Site age and speed limit status
+    - Next available publish time (for new sites)
     
     Args:
         site_id: Site UUID
+        silo_id: Silo UUID
         db: Database session
-        silo_enforcer: Reverse silo enforcer service
         
     Returns:
-        Validation result with is_valid flag and message
+        Silo publish status
+        
+    Raises:
+        HTTPException: 404 if site/silo not found
     """
-    is_valid, message = await silo_enforcer.validate_silo_structure(db, str(site_id))
-    return {"is_valid": is_valid, "message": message}
-
+    site = await db.get(Site, site_id)
+    if not site:
+        raise HTTPException(status_code=404, detail="Site not found")
+    
+    publisher = SiloBatchPublisher()
+    status_result = await publisher.get_silo_publish_status(db, str(silo_id))
+    
+    if "error" in status_result:
+        raise HTTPException(status_code=404, detail=status_result["error"])
+    
+    return status_result
