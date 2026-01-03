@@ -178,6 +178,28 @@ class ErrorCodeDictionary:
         ],
     )
     
+    PREFLIGHT_011: ClassVar[ErrorCode] = ErrorCode(
+        code="PREFLIGHT_011",
+        message="LOCAL_SERVICE site requires geo_coordinates and service_area",
+        doctrine_reference="DOCTRINE-SCOPE-001: Site type validation",
+        remediation_steps=[
+            "Set site_type to LOCAL_SERVICE or ECOMMERCE",
+            "For LOCAL_SERVICE: Provide geo_coordinates (lat/lng) and service_area array",
+            "For ECOMMERCE: Provide product_sku_pattern and currency_settings",
+        ],
+    )
+    
+    PREFLIGHT_012: ClassVar[ErrorCode] = ErrorCode(
+        code="PREFLIGHT_012",
+        message="ECOMMERCE site requires product_sku_pattern and currency_settings",
+        doctrine_reference="DOCTRINE-SCOPE-001: Site type validation",
+        remediation_steps=[
+            "Set site_type to LOCAL_SERVICE or ECOMMERCE",
+            "For LOCAL_SERVICE: Provide geo_coordinates (lat/lng) and service_area array",
+            "For ECOMMERCE: Provide product_sku_pattern and currency_settings",
+        ],
+    )
+    
     # State Machine Errors (STATE_*)
     STATE_001: ClassVar[ErrorCode] = ErrorCode(
         code="STATE_001",
@@ -503,6 +525,18 @@ class ErrorCodeDictionary:
             "Optimize images and reduce resource count to improve LCP",
             "Reduce JavaScript execution time to improve FID",
             "Ensure mobile viewport is properly configured",
+        ],
+    )
+    
+    LIFECYCLE_008: ClassVar[ErrorCode] = ErrorCode(
+        code="LIFECYCLE_008",
+        message="Link density exceeds maximum allowed ratios",
+        doctrine_reference="DOCTRINE-LINK-001: Link density enforcement (Section 8.2)",
+        remediation_steps=[
+            "Reduce external links to maximum 1 per 400 words",
+            "Reduce internal links to maximum 3 per 400 words",
+            "Review content and remove excessive links",
+            "Ensure link density ratios are within acceptable limits",
         ],
     )
     

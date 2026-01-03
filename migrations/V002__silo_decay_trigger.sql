@@ -15,6 +15,7 @@ DECLARE
     archived_count INTEGER := 0;
 BEGIN
     -- Archive stale proposals (older than threshold)
+    -- Correction Sprint: Exclude product pages from decay
     IF NEW.is_proposal = true THEN
         UPDATE pages
         SET 
@@ -25,7 +26,9 @@ BEGIN
             id = NEW.id
             AND is_proposal = true
             AND created_at < NOW() - decay_threshold
-            AND status NOT IN ('published', 'decommissioned');
+            AND status NOT IN ('published', 'decommissioned')
+            -- Task 3: Product Protection - Exclude product pages from decay
+            AND (governance_checks->>'page_type' IS NULL OR governance_checks->>'page_type' != 'product');
         
         GET DIAGNOSTICS archived_count = ROW_COUNT;
         
@@ -46,6 +49,7 @@ BEGIN
     END IF;
     
     -- Archive orphaned pages (no keyword, no silo, older than threshold)
+    -- Correction Sprint: Exclude product pages from decay
     UPDATE pages p
     SET 
         status = 'decommissioned',
@@ -55,7 +59,9 @@ BEGIN
         AND p.id NOT IN (SELECT page_id FROM page_silos WHERE page_id IS NOT NULL)
         AND p.status = 'draft'
         AND p.created_at < NOW() - decay_threshold
-        AND p.status != 'decommissioned';
+        AND p.status != 'decommissioned'
+        -- Task 3: Product Protection - Exclude product pages from decay
+        AND (p.governance_checks->>'page_type' IS NULL OR p.governance_checks->>'page_type' != 'product');
     
     GET DIAGNOSTICS archived_count = ROW_COUNT;
     
@@ -102,6 +108,7 @@ DECLARE
     event_id_val BIGINT;
 BEGIN
     -- Archive stale proposals
+    -- Correction Sprint: Exclude product pages from decay
     UPDATE pages
     SET 
         status = 'decommissioned',
@@ -110,11 +117,14 @@ BEGIN
     WHERE 
         is_proposal = true
         AND created_at < NOW() - (threshold_days || ' days')::INTERVAL
-        AND status NOT IN ('published', 'decommissioned');
+        AND status NOT IN ('published', 'decommissioned')
+        -- Task 3: Product Protection - Exclude product pages from decay
+        AND (governance_checks->>'page_type' IS NULL OR governance_checks->>'page_type' != 'product');
     
     GET DIAGNOSTICS archived = ROW_COUNT;
     
     -- Archive orphaned pages
+    -- Correction Sprint: Exclude product pages from decay
     UPDATE pages p
     SET 
         status = 'decommissioned',
@@ -124,7 +134,9 @@ BEGIN
         AND p.id NOT IN (SELECT page_id FROM page_silos WHERE page_id IS NOT NULL)
         AND p.status = 'draft'
         AND p.created_at < NOW() - (threshold_days || ' days')::INTERVAL
-        AND p.status != 'decommissioned';
+        AND p.status != 'decommissioned'
+        -- Task 3: Product Protection - Exclude product pages from decay
+        AND (p.governance_checks->>'page_type' IS NULL OR p.governance_checks->>'page_type' != 'product');
     
     GET DIAGNOSTICS archived = archived + ROW_COUNT;
     

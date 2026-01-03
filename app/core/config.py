@@ -70,6 +70,14 @@ class Settings(BaseSettings):
     # 2026 Performance Enhancements
     inp_threshold: float = 200.0  # Interaction to Next Paint (milliseconds)
     performance_budget_mb: float = 2.0  # Performance budget in MB (payload size limit)
+    
+    # Correction Sprint: Tone Governance (Section 6.1)
+    # Supported brand voice tones - replaces free-text input
+    SUPPORTED_TONES: dict = {
+        "AUTHORITY": "Professional, data-driven, clinical. Use authoritative, technical language. Demonstrate deep expertise and knowledge. Use industry terminology appropriately. Provide detailed explanations and technical specifications. Maintain professional, credible tone throughout.",
+        "NEIGHBOR": "Friendly, local, accessible, first-person. Use warm, friendly 'You/We' language. Write as if speaking to a neighbor or friend. Include local references and relatable examples. Use conversational tone, avoid overly formal language. Show empathy and understanding of customer needs.",
+        "HYPE": "High-energy, sales-focused, urgent. Use energetic, sales-focused language. Create excitement and urgency. Highlight benefits and outcomes. Use action-oriented, compelling language. Focus on transformation and results.",
+    }
 
     class Config:
         env_file = ".env"

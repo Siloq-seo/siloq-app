@@ -3,6 +3,7 @@ from typing import Dict, List, Optional, Any, Tuple
 from pydantic import BaseModel, Field
 from openai import AsyncOpenAI
 import re
+from app.core.config import settings
 
 
 class StructuredContent(BaseModel):
@@ -217,38 +218,35 @@ Anti-Thinness Rule: Every mention of a location must be tied to the service. Exp
         """
         Get system prompt addition based on brand voice enum.
         
+        Task 5: Tone Governance - Uses SUPPORTED_TONES from config instead of free-text.
+        
         Args:
-            voice: Brand voice enum value
+            voice: Brand voice enum value (AUTHORITY, NEIGHBOR, HYPE)
             
         Returns:
             Voice-specific prompt addition
         """
-        voice_lower = voice.lower()
+        # Normalize voice input
+        voice_upper = voice.upper().strip()
         
-        if voice_lower == "voice_expert":
-            return """Tone Guidelines (VOICE_EXPERT):
-- Use authoritative, technical language
-- Demonstrate deep expertise and knowledge
-- Use industry terminology appropriately
-- Provide detailed explanations and technical specifications
-- Maintain professional, credible tone throughout"""
+        # Map old voice names to new ones for backward compatibility
+        voice_mapping = {
+            "VOICE_EXPERT": "AUTHORITY",
+            "VOICE_NEIGHBOR": "NEIGHBOR",
+            "VOICE_HYPE": "HYPE",
+        }
         
-        elif voice_lower == "voice_neighbor":
-            return """Tone Guidelines (VOICE_NEIGHBOR):
-- Use warm, friendly "You/We" language
-- Write as if speaking to a neighbor or friend
-- Include local references and relatable examples
-- Use conversational tone, avoid overly formal language
-- Show empathy and understanding of customer needs"""
+        # Check if it's an old voice name
+        if voice_upper in voice_mapping:
+            voice_upper = voice_mapping[voice_upper]
         
-        elif voice_lower == "voice_hype":
-            return """Tone Guidelines (VOICE_HYPE):
-- Use energetic, sales-focused language
-- Create excitement and urgency
-- Highlight benefits and outcomes
-- Use action-oriented, compelling language
-- Focus on transformation and results"""
+        # Get tone from SUPPORTED_TONES dictionary
+        if voice_upper in settings.SUPPORTED_TONES:
+            tone_description = settings.SUPPORTED_TONES[voice_upper]
+            return f"""Tone Guidelines ({voice_upper}):
+{tone_description}"""
         
+        # If voice not found, return empty (no tone guidance)
         return ""
     
     def _insert_image_placeholders(self, content: str) -> str:
