@@ -132,12 +132,16 @@ class ContentGenerationProcessor:
                 prompt = job_data.get("prompt", f"Write comprehensive content about: {page.title}")
                 
                 try:
+                    # Extract metadata for entity injection
+                    metadata = job_data.get("metadata", {})
+                    
                     structured_content = await self.structured_generator.generate_structured_content(
                         prompt=prompt,
                         title=page.title,
                         model="gpt-4-turbo-preview",
                         temperature=0.7,
                         max_tokens=4000,
+                        metadata=metadata,
                     )
                     
                     # Calculate cost for structured generation
