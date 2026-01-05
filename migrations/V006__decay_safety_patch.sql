@@ -1,21 +1,28 @@
--- Siloq Core Database Schema v1.3.1
--- SILO_DECAY trigger implementation
+-- V1 Stress Test: Decay Safety Patch
+-- Prevents decay logic from archiving Product and Service_Core pages
 -- Idempotent migration - safe to run multiple times
 
 -- ============================================================================
--- SILO_DECAY TRIGGER
+-- UPDATED SILO_DECAY TRIGGER
 -- ============================================================================
--- Automated cleanup/archival mechanism for stale data
--- Archives or deletes entries based on decay rules
+-- Updated to exclude Product and Service_Core pages from decay
 
 CREATE OR REPLACE FUNCTION trigger_silo_decay()
 RETURNS TRIGGER AS $$
 DECLARE
     decay_threshold INTERVAL := INTERVAL '90 days';  -- Configurable threshold
     archived_count INTEGER := 0;
+    page_type_val TEXT;
 BEGIN
+    -- Get page type from governance_checks metadata
+    page_type_val := NEW.governance_checks->>'page_type';
+    
+    -- Skip decay for Product and Service_Core pages (V1 Stress Test Patch)
+    IF page_type_val IN ('Product', 'Service_Core', 'product', 'service_core') THEN
+        RETURN NEW;  -- Skip decay for these page types
+    END IF;
+    
     -- Archive stale proposals (older than threshold)
-    -- Correction Sprint: Exclude product pages from decay
     IF NEW.is_proposal = true THEN
         UPDATE pages
         SET 
@@ -26,9 +33,7 @@ BEGIN
             id = NEW.id
             AND is_proposal = true
             AND created_at < NOW() - decay_threshold
-            AND status NOT IN ('published', 'decommissioned')
-            -- Task 3: Product Protection - Exclude product pages from decay
-            AND (governance_checks->>'page_type' IS NULL OR governance_checks->>'page_type' != 'product');
+            AND status NOT IN ('published', 'decommissioned');
         
         GET DIAGNOSTICS archived_count = ROW_COUNT;
         
@@ -42,14 +47,15 @@ BEGIN
                 jsonb_build_object(
                     'reason', 'stale_proposal',
                     'threshold_days', 90,
-                    'created_at', NEW.created_at
+                    'created_at', NEW.created_at,
+                    'page_type', page_type_val
                 )
             );
         END IF;
     END IF;
     
     -- Archive orphaned pages (no keyword, no silo, older than threshold)
-    -- Correction Sprint: Exclude product pages from decay
+    -- EXCLUDE Product and Service_Core pages
     UPDATE pages p
     SET 
         status = 'decommissioned',
@@ -57,11 +63,10 @@ BEGIN
     WHERE 
         p.id NOT IN (SELECT page_id FROM keywords WHERE page_id IS NOT NULL)
         AND p.id NOT IN (SELECT page_id FROM page_silos WHERE page_id IS NOT NULL)
+        AND (p.governance_checks->>'page_type') NOT IN ('Product', 'Service_Core', 'product', 'service_core')
         AND p.status = 'draft'
         AND p.created_at < NOW() - decay_threshold
-        AND p.status != 'decommissioned'
-        -- Task 3: Product Protection - Exclude product pages from decay
-        AND (p.governance_checks->>'page_type' IS NULL OR p.governance_checks->>'page_type' != 'product');
+        AND p.status != 'decommissioned';
     
     GET DIAGNOSTICS archived_count = ROW_COUNT;
     
@@ -75,7 +80,8 @@ BEGIN
             jsonb_build_object(
                 'reason', 'orphaned_pages',
                 'archived_count', archived_count,
-                'threshold_days', 90
+                'threshold_days', 90,
+                'excluded_page_types', ARRAY['Product', 'Service_Core']
             )
         );
     END IF;
@@ -84,20 +90,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Apply SILO_DECAY trigger on pages table
--- Runs on INSERT and UPDATE to catch stale data
-DROP TRIGGER IF EXISTS trigger_pages_silo_decay ON pages;
-CREATE TRIGGER trigger_pages_silo_decay
-    AFTER INSERT OR UPDATE ON pages
-    FOR EACH ROW
-    WHEN (NEW.is_proposal = true OR NEW.status = 'draft')
-    EXECUTE FUNCTION trigger_silo_decay();
-
--- ============================================================================
--- HELPER FUNCTION: Manual decay execution
--- ============================================================================
--- Allows manual execution of decay logic for maintenance
-
+-- Update manual decay function
 CREATE OR REPLACE FUNCTION execute_silo_decay(threshold_days INTEGER DEFAULT 90)
 RETURNS TABLE (
     archived_count INTEGER,
@@ -107,8 +100,7 @@ DECLARE
     archived INTEGER := 0;
     event_id_val BIGINT;
 BEGIN
-    -- Archive stale proposals
-    -- Correction Sprint: Exclude product pages from decay
+    -- Archive stale proposals (EXCLUDE Product and Service_Core)
     UPDATE pages
     SET 
         status = 'decommissioned',
@@ -116,15 +108,13 @@ BEGIN
         is_proposal = false
     WHERE 
         is_proposal = true
+        AND (governance_checks->>'page_type') NOT IN ('Product', 'Service_Core', 'product', 'service_core')
         AND created_at < NOW() - (threshold_days || ' days')::INTERVAL
-        AND status NOT IN ('published', 'decommissioned')
-        -- Task 3: Product Protection - Exclude product pages from decay
-        AND (governance_checks->>'page_type' IS NULL OR governance_checks->>'page_type' != 'product');
+        AND status NOT IN ('published', 'decommissioned');
     
     GET DIAGNOSTICS archived = ROW_COUNT;
     
-    -- Archive orphaned pages
-    -- Correction Sprint: Exclude product pages from decay
+    -- Archive orphaned pages (EXCLUDE Product and Service_Core)
     UPDATE pages p
     SET 
         status = 'decommissioned',
@@ -132,11 +122,10 @@ BEGIN
     WHERE 
         p.id NOT IN (SELECT page_id FROM keywords WHERE page_id IS NOT NULL)
         AND p.id NOT IN (SELECT page_id FROM page_silos WHERE page_id IS NOT NULL)
+        AND (p.governance_checks->>'page_type') NOT IN ('Product', 'Service_Core', 'product', 'service_core')
         AND p.status = 'draft'
         AND p.created_at < NOW() - (threshold_days || ' days')::INTERVAL
-        AND p.status != 'decommissioned'
-        -- Task 3: Product Protection - Exclude product pages from decay
-        AND (p.governance_checks->>'page_type' IS NULL OR p.governance_checks->>'page_type' != 'product');
+        AND p.status != 'decommissioned';
     
     GET DIAGNOSTICS archived = archived + ROW_COUNT;
     
@@ -148,7 +137,8 @@ BEGIN
         NULL,
         jsonb_build_object(
             'threshold_days', threshold_days,
-            'archived_count', archived
+            'archived_count', archived,
+            'excluded_page_types', ARRAY['Product', 'Service_Core']
         )
     )
     RETURNING id INTO event_id_val;
@@ -157,6 +147,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-COMMENT ON FUNCTION trigger_silo_decay() IS 'Automated cleanup/archival mechanism for stale data (v1.3.1)';
-COMMENT ON FUNCTION execute_silo_decay(INTEGER) IS 'Manual execution of decay logic for maintenance';
+COMMENT ON FUNCTION trigger_silo_decay() IS 'Automated cleanup/archival mechanism for stale data (v1.3.1 + V1 Stress Test: excludes Product/Service_Core pages)';
+COMMENT ON FUNCTION execute_silo_decay(INTEGER) IS 'Manual execution of decay logic for maintenance (V1 Stress Test: excludes Product/Service_Core pages)';
 

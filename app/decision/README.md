@@ -79,7 +79,7 @@ COMPLETED / FAILED
 - **STATE_*** - State machine errors
 - **POSTCHECK_*** - Post-generation check errors (includes Week 5: entity coverage, FAQ minimum, link validation)
 - **AI_*** - Week 5: AI generation errors (retry exceeded, cost limit exceeded)
-- **LIFECYCLE_*** - Week 6: Lifecycle gate errors (governance, schema sync, embedding, authority, structure, status, redirect)
+- **LIFECYCLE_*** - Week 6: Lifecycle gate errors (governance, schema sync, embedding, authority, structure, status, redirect) + 2025 SEO (experience, GEO formatting, web vitals)
 - **SYSTEM_*** - System errors
 
 ### Error Format
@@ -156,6 +156,9 @@ Each error references a doctrine policy:
 - `DOCTRINE-AI-*` - Week 5: AI generation rules (retry limits, cost limits)
 - `DOCTRINE-PUBLISH-*` - Week 6: Publishing rules (lifecycle gates)
 - `DOCTRINE-DECOMMISSION-*` - Week 6: Decommission rules (redirect validation)
+- `DOCTRINE-2025-EXPERIENCE-*` - 2025 SEO: First-hand experience requirements
+- `DOCTRINE-2025-GEO-*` - 2025 SEO: Generative Engine Optimization requirements
+- `DOCTRINE-2025-MOBILE-*` - 2025 SEO: Mobile-first rendering requirements
 - `DOCTRINE-SYSTEM-*` - System rules
 
 ## Week 5 Enhancements
@@ -180,4 +183,18 @@ The Decision Engine now includes lifecycle gate error codes:
 - **LIFECYCLE_007**: Invalid redirect URL for decommission
 
 All lifecycle gate errors include detailed remediation steps and reference the appropriate doctrine policy.
+
+## 2025 SEO Alignment Enhancements
+
+The Decision Engine now includes additional lifecycle gate error codes for 2025 SEO requirements:
+- **LIFECYCLE_008**: Experience verification gate failed - Content must demonstrate first-hand experience
+- **LIFECYCLE_009**: GEO formatting gate failed - Content must be formatted for AI citation (direct answers, bullets, FAQs)
+- **LIFECYCLE_010**: Core Web Vitals gate failed - Mobile-first rendering validation failed (CLS, LCP, FID)
+
+These error codes enforce Google's 2025 SEO requirements:
+- **E-E-A-T & First-Hand Experience**: Content must include specific data points, case studies, or real-world examples
+- **GEO (Generative Engine Optimization)**: Content must be formatted for AI Overviews and AI Mode citation
+- **Mobile-First Dominance**: Content must pass Core Web Vitals checks before publishing
+
+All 2025 SEO error codes include detailed remediation steps and reference the appropriate doctrine policy (DOCTRINE-2025-*).
 

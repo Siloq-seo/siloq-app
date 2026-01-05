@@ -23,6 +23,12 @@ class ContentStatus(str, enum.Enum):
     BLOCKED = "blocked"
 
 
+class SiteType(str, enum.Enum):
+    """Site type enumeration"""
+    LOCAL_SERVICE = "LOCAL_SERVICE"
+    ECOMMERCE = "ECOMMERCE"
+
+
 class Site(Base):
     """Site/Website entity"""
     __tablename__ = "sites"
@@ -30,6 +36,19 @@ class Site(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(String, nullable=False)
     domain = Column(String, unique=True, nullable=False)
+    site_type = Column(
+        Enum(SiteType, name="site_type_enum", values_callable=lambda x: [e.value for e in x]),
+        nullable=True
+    )
+    
+    # LOCAL_SERVICE required fields
+    geo_coordinates = Column(JSONB, nullable=True)  # {"lat": float, "lng": float}
+    service_area = Column(JSONB, nullable=True)  # ["area1", "area2", ...]
+    
+    # ECOMMERCE required fields
+    product_sku_pattern = Column(String, nullable=True)  # e.g., "PROD-{category}-{id}"
+    currency_settings = Column(JSONB, nullable=True)  # {"default": "USD", "supported": [...]}
+    
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
@@ -75,6 +94,10 @@ class Page(Base):
     
     # Governance checks (Week 5 Refactor)
     governance_checks = Column(JSONB, default=lambda: {})
+    
+    # Page type (V1 Stress Test: Product, Service_Core, Blog, Supporting)
+    # Stored in governance_checks for flexibility, can be migrated to column later
+    # page_type = Column(String, nullable=True)  # Future: Add as column if needed
     
     # Vector embedding for cannibalization detection
     embedding = Column(Vector(1536))

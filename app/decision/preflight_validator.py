@@ -8,7 +8,7 @@ from sqlalchemy import select, and_
 
 from app.decision.error_codes import ErrorCode, ErrorCodeDictionary
 from app.decision.schemas import ValidationPayload, ValidationResult
-from app.db.models import Page, Site, Silo, Keyword
+from app.db.models import Page, Site, Silo, Keyword, SiteType
 from app.governance.reverse_silos import ReverseSiloEnforcer
 from app.governance.cannibalization import CannibalizationDetector
 from app.governance.near_duplicate_detector import NearDuplicateDetector
@@ -61,6 +61,7 @@ class PreflightValidator:
         # Run all validation checks
         validation_checks = [
             self._check_site_exists(db, payload.site_id),
+            self._check_site_type_requirements(db, payload.site_id),
             self._check_path_uniqueness(
                 db, payload.site_id, payload.path, payload.page_id
             ),
@@ -125,6 +126,58 @@ class PreflightValidator:
         site = await db.get(Site, site_id)
         if not site:
             return False, ErrorCodeDictionary.PREFLIGHT_009
+        return True, None
+    
+    async def _check_site_type_requirements(
+        self, db: AsyncSession, site_id: UUID
+    ) -> Tuple[bool, Optional[ErrorCode]]:
+        """
+        Check site type requirements.
+        
+        If LOCAL_SERVICE: Require geo_coordinates and service_area
+        If ECOMMERCE: Require product_sku_pattern and currency_settings
+        
+        Args:
+            db: Database session
+            site_id: Site identifier
+            
+        Returns:
+            Tuple of (is_valid, error_code_if_not)
+        """
+        site = await db.get(Site, site_id)
+        if not site:
+            return True, None  # Site existence is checked separately
+        
+        # If site_type is not set, skip validation (backward compatibility)
+        if not site.site_type:
+            return True, None
+        
+        if site.site_type == SiteType.LOCAL_SERVICE:
+            # Require geo_coordinates and service_area
+            if not site.geo_coordinates or not site.service_area:
+                return False, ErrorCodeDictionary.PREFLIGHT_011
+            
+            # Validate geo_coordinates structure
+            if not isinstance(site.geo_coordinates, dict):
+                return False, ErrorCodeDictionary.PREFLIGHT_011
+            if "lat" not in site.geo_coordinates or "lng" not in site.geo_coordinates:
+                return False, ErrorCodeDictionary.PREFLIGHT_011
+            
+            # Validate service_area is an array
+            if not isinstance(site.service_area, list) or len(site.service_area) == 0:
+                return False, ErrorCodeDictionary.PREFLIGHT_011
+        
+        elif site.site_type == SiteType.ECOMMERCE:
+            # Require product_sku_pattern and currency_settings
+            if not site.product_sku_pattern or not site.currency_settings:
+                return False, ErrorCodeDictionary.PREFLIGHT_012
+            
+            # Validate currency_settings structure
+            if not isinstance(site.currency_settings, dict):
+                return False, ErrorCodeDictionary.PREFLIGHT_012
+            if "default" not in site.currency_settings:
+                return False, ErrorCodeDictionary.PREFLIGHT_012
+        
         return True, None
     
     async def _check_path_uniqueness(

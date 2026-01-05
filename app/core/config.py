@@ -51,6 +51,33 @@ class Settings(BaseSettings):
     # Content Structure Settings
     max_title_length: int = 200
     max_slug_length: int = 100
+    
+    # 2025 SEO Alignment Settings
+    # Experience Verification
+    min_experience_indicators: int = 2
+    max_generic_indicators: int = 3
+    
+    # GEO Formatting
+    direct_answer_max_chars: int = 200
+    min_bullet_points: int = 3
+    min_headings: int = 2
+    
+    # Core Web Vitals Thresholds
+    cls_threshold: float = 0.1  # Cumulative Layout Shift
+    lcp_threshold: float = 2.5  # Largest Contentful Paint (seconds)
+    fid_threshold: float = 100.0  # First Input Delay (milliseconds, legacy)
+    
+    # 2026 Performance Enhancements
+    inp_threshold: float = 200.0  # Interaction to Next Paint (milliseconds)
+    performance_budget_mb: float = 2.0  # Performance budget in MB (payload size limit)
+    
+    # Correction Sprint: Tone Governance (Section 6.1)
+    # Supported brand voice tones - replaces free-text input
+    SUPPORTED_TONES: dict = {
+        "AUTHORITY": "Professional, data-driven, clinical. Use authoritative, technical language. Demonstrate deep expertise and knowledge. Use industry terminology appropriately. Provide detailed explanations and technical specifications. Maintain professional, credible tone throughout.",
+        "NEIGHBOR": "Friendly, local, accessible, first-person. Use warm, friendly 'You/We' language. Write as if speaking to a neighbor or friend. Include local references and relatable examples. Use conversational tone, avoid overly formal language. Show empathy and understanding of customer needs.",
+        "HYPE": "High-energy, sales-focused, urgent. Use energetic, sales-focused language. Create excitement and urgency. Highlight benefits and outcomes. Use action-oriented, compelling language. Focus on transformation and results.",
+    }
 
     class Config:
         env_file = ".env"

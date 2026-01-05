@@ -178,6 +178,28 @@ class ErrorCodeDictionary:
         ],
     )
     
+    PREFLIGHT_011: ClassVar[ErrorCode] = ErrorCode(
+        code="PREFLIGHT_011",
+        message="LOCAL_SERVICE site requires geo_coordinates and service_area",
+        doctrine_reference="DOCTRINE-SCOPE-001: Site type validation",
+        remediation_steps=[
+            "Set site_type to LOCAL_SERVICE or ECOMMERCE",
+            "For LOCAL_SERVICE: Provide geo_coordinates (lat/lng) and service_area array",
+            "For ECOMMERCE: Provide product_sku_pattern and currency_settings",
+        ],
+    )
+    
+    PREFLIGHT_012: ClassVar[ErrorCode] = ErrorCode(
+        code="PREFLIGHT_012",
+        message="ECOMMERCE site requires product_sku_pattern and currency_settings",
+        doctrine_reference="DOCTRINE-SCOPE-001: Site type validation",
+        remediation_steps=[
+            "Set site_type to LOCAL_SERVICE or ECOMMERCE",
+            "For LOCAL_SERVICE: Provide geo_coordinates (lat/lng) and service_area array",
+            "For ECOMMERCE: Provide product_sku_pattern and currency_settings",
+        ],
+    )
+    
     # State Machine Errors (STATE_*)
     STATE_001: ClassVar[ErrorCode] = ErrorCode(
         code="STATE_001",
@@ -463,6 +485,58 @@ class ErrorCodeDictionary:
             "Ensure redirect URL is valid (internal path or external URL)",
             "If internal, verify target page exists and is published",
             "Check redirect URL format",
+        ],
+    )
+    
+    # 2025 SEO Alignment: New Lifecycle Gates
+    LIFECYCLE_008: ClassVar[ErrorCode] = ErrorCode(
+        code="LIFECYCLE_008",
+        message="Cannot publish: Experience verification gate failed",
+        doctrine_reference="DOCTRINE-2025-EXPERIENCE-001: First-hand experience requirement",
+        remediation_steps=[
+            "Add specific data points, statistics, or metrics to content",
+            "Include case studies or real-world examples",
+            "Add first-hand anecdotes or personal experiences",
+            "Replace generic statements with concrete evidence",
+            "Ensure content demonstrates real-world experience (minimum 2 experience indicators)",
+        ],
+    )
+    
+    LIFECYCLE_009: ClassVar[ErrorCode] = ErrorCode(
+        code="LIFECYCLE_009",
+        message="Cannot publish: GEO formatting gate failed",
+        doctrine_reference="DOCTRINE-2025-GEO-001: AI citation-ready formatting",
+        remediation_steps=[
+            "Add direct answer at the top of content (first 200 characters)",
+            "Include bullet points for key information (minimum 3 bullets)",
+            "Add clear section headings (minimum 2 headings)",
+            "Include FAQ section with at least 2 question-answer pairs",
+            "Use structured formatting (lists, tables) for easy AI citation",
+        ],
+    )
+    
+    LIFECYCLE_010: ClassVar[ErrorCode] = ErrorCode(
+        code="LIFECYCLE_010",
+        message="Cannot publish: Core Web Vitals gate failed",
+        doctrine_reference="DOCTRINE-2025-MOBILE-001: Mobile-first rendering validation",
+        remediation_steps=[
+            "Add width and height attributes to images to prevent CLS",
+            "Add loading='lazy' to images for better performance",
+            "Optimize images and reduce resource count to improve LCP",
+            "Reduce JavaScript execution time to improve FID",
+            "Ensure mobile viewport is properly configured",
+        ],
+    )
+    
+    LIFECYCLE_008: ClassVar[ErrorCode] = ErrorCode(
+        code="LIFECYCLE_008",
+        message="Link density exceeds maximum allowed ratios",
+        doctrine_reference="DOCTRINE-LINK-001: Link density enforcement (Section 8.2)",
+        remediation_steps=[
+            "Reduce external links to maximum 1 per 400 words",
+            "Reduce internal links to maximum 3 per 400 words",
+            "Review content and remove excessive links",
+            "Ensure link density ratios are within acceptable limits",
         ],
     )
     

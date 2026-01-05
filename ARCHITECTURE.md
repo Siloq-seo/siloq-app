@@ -16,7 +16,7 @@ Every feature must enforce:
 ✅ **Prevent cannibalization by constraint** - Vector embeddings detect semantic similarity
 ✅ **Enforce Reverse Silos (3–7) structurally** - Hard limits on silo count per site
 ✅ **Govern AI output before, during, and after generation** - Three-stage governance
-✅ **Block unsafe publishing** - Comprehensive safety checks with 6 lifecycle gates (Week 6)
+✅ **Block unsafe publishing** - Comprehensive safety checks with 9 lifecycle gates (Week 6 + 2025 SEO)
 ✅ **Preserve authority during decommissioning** - Maintain source URLs and authority scores with redirect enforcement (Week 6)
 
 ## System Architecture
@@ -86,16 +86,91 @@ Every feature must enforce:
 - Stores redirect information
 - Creates audit trail
 
-#### Lifecycle Gates (`app/governance/lifecycle_gates.py`) - Week 6
-- **6 Gates** that must all pass before publishing:
+#### Lifecycle Gates (`app/governance/lifecycle_gates.py`) - Week 6 + 2025 SEO + 2026 Enhancements
+- **10 Gates** that must all pass before publishing:
   1. Governance checks gate - All governance checks (pre/during/post) must have passed
   2. Schema sync validation gate - JSON-LD schema must match content (title, path, dates)
   3. Embedding gate - Vector embedding must exist for cannibalization tracking
   4. Authority gate - High authority content requires source URLs
   5. Content structure gate - Title, body, and path must be valid
   6. Status gate - Status must allow publishing (APPROVED or DRAFT, not BLOCKED/DECOMMISSIONED)
+  7. **Experience verification gate** (2025 SEO) - Content must demonstrate first-hand experience
+  8. **GEO formatting gate** (2025 SEO) - Content must be formatted for AI citation (direct answers, bullets, FAQs)
+  9. **Core Web Vitals gate** (2025 SEO) - Mobile-first rendering validation (CLS, LCP, INP, Performance Budget)
+  10. **Media integrity gate** (2026 SEO) - Multimedia governance (WebP conversion, alt-text, VideoObject schema)
 - Blocks publishing if any gate fails
 - Returns detailed error codes for failed gates
+
+#### Experience Verification (`app/governance/experience_verification.py`) - 2025 SEO
+- Validates first-hand experience indicators (minimum 2 required)
+- Checks for specific data points, statistics, or metrics
+- Validates presence of case studies or real-world examples
+- Detects generic/AI-generated content patterns
+- Enforces Google's E-E-A-T requirements
+
+#### GEO Formatting (`app/governance/geo_formatting.py`) - 2025 SEO
+- Validates direct answer at top of content (first 200 characters)
+- Requires minimum bullet points (3+) for key information
+- Enforces clear section headings (minimum 2 H2/H3)
+- Validates FAQ section with question-answer pairs (minimum 2)
+- Ensures structured formatting for easy AI citation
+- Optimizes content for Google's AI Overviews and AI Mode
+
+#### Core Web Vitals (`app/governance/core_web_vitals.py`) - 2025 SEO + 2026 Enhancements
+- Validates Cumulative Layout Shift (CLS) - Layout stability
+- Checks Largest Contentful Paint (LCP) - Loading performance
+- **Interaction to Next Paint (INP)** (2026) - Replaces FID, measures interactivity
+- **Performance Budget Validator** (2026) - Validates total payload size (2MB threshold)
+- Validates mobile viewport configuration
+- Provides image optimization recommendations
+- Ensures mobile-first rendering compliance
+- Blocks publishing if payload exceeds performance budget
+
+#### Media Integrity (`app/governance/media_integrity.py`) - 2026 SEO Enhancement
+- Validates image format optimization (WebP preferred, legacy formats flagged)
+- Enforces descriptive alt-text (non-keyword-stuffed) with Vision AI integration support
+- Validates VideoObject schema for videos (required for Video SERP eligibility)
+- Checks image metadata completeness (width, height, loading attributes)
+- Flags keyword-stuffed alt-text patterns
+- Ensures multimedia content meets Google's multimodal search requirements
+
+#### Governance-Safe Personalization (`app/governance/personalization.py`) - 2026 Enhancement
+- Configuration-based personalization system (maintains deterministic behavior)
+- Pre-validated widget configurations (no AI-generated JavaScript)
+- Visitor state-based widget switching (new vs returning visitor)
+- Deterministic state transitions (no arbitrary state changes)
+- Complies with Signal Registry Rule 2 (Deterministic Behavior) and Rule 3 (Configuration-Only AI)
+- Allows showing different validated configurations without violating governance rules
+
+#### Global Sync (`app/governance/global_sync.py`) - 2026 Enhancement
+- **Hreflang governance** - Validates 1-to-1 mapping between translated pages
+- **Cultural intent validation** - Ensures content is culturally appropriate for target language/locale
+- **Multilingual silo sync** - Ensures silo structure consistency across languages
+- **Boss Page linking validation** - Ensures Boss Pages link only to same-language supporting pages
+- Validates circular hreflang references
+- Supports global brand management across multiple languages
+
+#### GBP Signal Validator (`app/governance/gbp_validator.py`) - 2026 Enhancement
+- **Google Business Profile (GBP) integration** for local SEO
+- Validates service alignment (page services match GBP services)
+- Validates attribute alignment (page attributes match GBP attributes)
+- Detects authority leakage from mismatches
+- Suggests GBP updates based on page content
+- Bridges gap between website and Google Business Profile for local social proof
+
+#### Brand Sentiment Monitor (`app/governance/brand_sentiment.py`) - V3 Foundation
+- **Off-page sentiment monitoring** (V3: The Strategist)
+- Tracks brand mentions across external platforms (Reddit, Quora, forums)
+- Analyzes sentiment (positive/negative/neutral)
+- Identifies common complaints and gaps
+- Suggests "Restoration" content to address negative sentiment
+- Turns external "weaknesses" into internal "silo strengths"
+- Foundation for V3 brand sentiment gate
+
+#### Future Features Foundation
+- **Cross-Platform Entity Sync** (`app/governance/cross_platform_sync.py`) - Infrastructure for syncing brand entities across TikTok, Reddit, AI assistants
+- **Agent-Friendly Interface** (`app/governance/agent_friendly_interface.py`) - Structured data layer for AI agents to consume without parsing HTML
+- **Reputation Monitor** (`app/governance/reputation_monitor.py`) - Monitors brand sentiment and detects authority leakage from negative feedback
 
 #### Redirect Manager (`app/governance/redirect_manager.py`) - Week 6
 - Validates redirect URLs (internal paths or external URLs)

@@ -9,7 +9,7 @@ from sqlalchemy import select
 
 from app.decision.error_codes import ErrorCode, ErrorCodeDictionary
 from app.decision.schemas import ValidationResult
-from app.db.models import Page
+from app.db.models import Page, Site
 from app.governance.near_duplicate_detector import NearDuplicateDetector, DetectionResult
 from app.governance.geo_exceptions import GeoException
 from app.governance.cannibalization import CannibalizationDetector
@@ -107,6 +107,14 @@ class PostCheckValidator:
                 errors.append(
                     self._error_to_dict(ErrorCodeDictionary.POSTCHECK_009)
                 )
+            
+            # Task 4: Link Density Enforcement (Section 8.2)
+            if page.body:
+                link_density_error = await self._check_link_density(db, page.body, links, page)
+                if link_density_error:
+                    errors.append(
+                        self._error_to_dict(ErrorCodeDictionary.LIFECYCLE_008)
+                    )
         
         # Check 1: Near-duplicate intent detection
         detection_result = await self.near_duplicate_detector.detect_near_duplicates(
@@ -303,6 +311,88 @@ class PostCheckValidator:
                 db.add(check)
         
         await db.commit()
+    
+    async def _check_link_density(
+        self,
+        db: AsyncSession,
+        content: str,
+        links: List[Dict[str, str]],
+        page: Page,
+    ) -> Optional[str]:
+        """
+        Task 4: Check link density ratios (Section 8.2).
+        
+        Hard Constraints:
+        - Max 1 External Link per 400 words
+        - Max 3 Internal Links per 400 words
+        
+        Args:
+            db: Database session
+            content: Page body content
+            links: List of link dictionaries with 'url' and 'anchor_text'
+            page: Page object (for site_id to determine internal vs external)
+            
+        Returns:
+            Error message if density exceeds limits, None otherwise
+        """
+        if not content or not links:
+            return None
+        
+        # Count words in content
+        word_count = len(content.split())
+        
+        # Get site to determine internal vs external links
+        site = await db.get(Site, page.site_id)
+        site_domain = site.domain if site else None
+        
+        external_links = []
+        internal_links = []
+        
+        for link in links:
+            if not isinstance(link, dict):
+                continue
+            
+            url = link.get("url", "")
+            if not url:
+                continue
+            
+            # Determine if link is internal or external
+            # Internal: relative path (starts with /) or same domain
+            # External: absolute URL with different domain
+            if url.startswith("/"):
+                # Relative path = internal
+                internal_links.append(link)
+            elif url.startswith("http://") or url.startswith("https://"):
+                # Absolute URL - check if same domain
+                parsed_url = urlparse(url)
+                if site_domain and parsed_url.netloc and site_domain in parsed_url.netloc:
+                    # Same domain = internal
+                    internal_links.append(link)
+                else:
+                    # Different domain = external
+                    external_links.append(link)
+            else:
+                # Invalid URL format, skip
+                continue
+        
+        # Calculate ratios per 400 words
+        words_per_400 = word_count / 400.0
+        
+        # Calculate actual link counts
+        external_count = len(external_links)
+        internal_count = len(internal_links)
+        
+        # Check constraints
+        max_external = 1 * words_per_400  # Max 1 per 400 words
+        max_internal = 3 * words_per_400  # Max 3 per 400 words
+        
+        if external_count > max_external:
+            return f"External link density exceeded: {external_count} external links found, maximum {max_external:.1f} allowed (1 per 400 words)"
+        
+        if internal_count > max_internal:
+            return f"Internal link density exceeded: {internal_count} internal links found, maximum {max_internal:.1f} allowed (3 per 400 words)"
+        
+        return None
     
     @staticmethod
     def _error_to_dict(error: ErrorCode) -> Dict[str, str]:
