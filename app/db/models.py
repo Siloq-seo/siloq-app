@@ -95,6 +95,19 @@ class Page(Base):
     # Governance checks (Week 5 Refactor)
     governance_checks = Column(JSONB, default=lambda: {})
     
+    # V2 Dormant Fields - Added for forward compatibility
+    # These fields will be used in V2 but are safe to add now (pre-launch)
+    v2_governance = Column(
+        JSONB,
+        default=lambda: {
+            "signal_status": "IDLE",  # IDLE, ACTIVE, PAUSED
+            "enforcement_log": [],
+        },
+        nullable=False
+    )
+    active_widget_id = Column(UUID(as_uuid=True), nullable=True)  # V2: Active widget reference
+    widget_config_payload = Column(JSONB, default=lambda: {}, nullable=False)  # V2: Widget configuration
+    
     # Page type (V1 Stress Test: Product, Service_Core, Blog, Supporting)
     # Stored in governance_checks for flexibility, can be migrated to column later
     # page_type = Column(String, nullable=True)  # Future: Add as column if needed
