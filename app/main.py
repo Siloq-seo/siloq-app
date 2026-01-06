@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 from app.core.config import settings
 from app.core.database import engine, Base
 from app.core.redis import redis_client
+from app.core.rate_limit import RateLimitMiddleware
 from app.api.routes import sites_router, pages_router, jobs_router, silos_router, onboarding_router
 from app.queues.queue_manager import queue_manager
 from app.api.exception_handlers import (
@@ -55,14 +56,41 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS middleware
+# CORS middleware - environment-aware configuration
+def get_cors_origins() -> list:
+    """Get CORS origins based on environment"""
+    if settings.environment == "production":
+        # In production, parse from comma-separated list or use specific domains
+        if settings.cors_origins == "*":
+            # Default production: no wildcard, require explicit origins
+            return []  # Will be set via environment variable
+        return [origin.strip() for origin in settings.cors_origins.split(",")]
+    else:
+        # Development: allow all origins
+        return ["*"]
+
+def get_cors_methods() -> list:
+    """Get CORS methods based on environment"""
+    if settings.cors_methods == "*":
+        return ["*"]
+    return [method.strip() for method in settings.cors_methods.split(",")]
+
+def get_cors_headers() -> list:
+    """Get CORS headers based on environment"""
+    if settings.cors_headers == "*":
+        return ["*"]
+    return [header.strip() for header in settings.cors_headers.split(",")]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Configure appropriately for production
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=get_cors_origins(),
+    allow_credentials=settings.cors_allow_credentials,
+    allow_methods=get_cors_methods(),
+    allow_headers=get_cors_headers(),
 )
+
+# Rate limiting middleware
+app.add_middleware(RateLimitMiddleware)
 
 # Register exception handlers
 app.add_exception_handler(GovernanceError, governance_error_handler)
@@ -95,10 +123,39 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint"""
-    return {
+    """
+    Health check endpoint with actual connection testing.
+    
+    Returns:
+        Health status with actual connection states
+    """
+    from sqlalchemy import text
+    from app.core.redis import redis_client
+    
+    health_status = {
         "status": "healthy",
-        "database": "connected",
-        "redis": "connected",
+        "database": "unknown",
+        "redis": "unknown",
     }
+    
+    # Test database connection
+    try:
+        async with engine.begin() as conn:
+            result = await conn.execute(text("SELECT 1"))
+            result.scalar()
+        health_status["database"] = "connected"
+    except Exception as e:
+        health_status["database"] = f"disconnected: {str(e)}"
+        health_status["status"] = "degraded"
+    
+    # Test Redis connection
+    try:
+        client = await redis_client.get_client()
+        await client.ping()
+        health_status["redis"] = "connected"
+    except Exception as e:
+        health_status["redis"] = f"disconnected: {str(e)}"
+        health_status["status"] = "degraded"
+    
+    return health_status
 

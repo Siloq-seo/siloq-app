@@ -24,6 +24,23 @@ class Settings(BaseSettings):
     # Application
     environment: str = "development"
     log_level: str = "INFO"
+    
+    # CORS Configuration
+    cors_origins: str = "*"  # Comma-separated list of allowed origins, or "*" for all
+    cors_allow_credentials: bool = True
+    cors_allow_methods: str = "*"  # Comma-separated list or "*" for all
+    cors_allow_headers: str = "*"  # Comma-separated list or "*" for all
+    
+    # Rate Limiting
+    rate_limit_enabled: bool = True
+    rate_limit_per_minute: int = 60  # Requests per minute per site/account
+    rate_limit_per_hour: int = 1000  # Requests per hour per site/account
+    rate_limit_per_day: int = 10000  # Requests per day per site/account
+    
+    # Production Guardrails
+    global_generation_enabled: bool = True  # Global kill switch for content generation
+    max_jobs_per_hour: int = 100  # Maximum generation jobs per hour globally
+    max_jobs_per_day: int = 1000  # Maximum generation jobs per day globally
 
     # pgvector
     vector_dimension: int = 1536

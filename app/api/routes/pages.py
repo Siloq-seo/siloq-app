@@ -6,6 +6,7 @@ from uuid import UUID
 from datetime import datetime
 
 from app.core.database import get_db
+from app.core.auth import get_current_user, verify_page_access
 from app.db.models import Page, ContentStatus, GenerationJob, SystemEvent
 from app.api.dependencies import (
     get_lifecycle_gate_manager,
@@ -35,6 +36,8 @@ router = APIRouter(prefix="/pages", tags=["pages"])
 async def get_page(
     page_id: UUID,
     db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+    page: Page = Depends(verify_page_access),
 ):
     """
     Get page details by ID.
@@ -59,6 +62,8 @@ async def get_page(
 async def get_page_jsonld(
     page_id: UUID,
     db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+    page: Page = Depends(verify_page_access),
     jsonld_generator = Depends(get_jsonld_generator),
 ):
     """

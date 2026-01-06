@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from uuid import UUID
 
 from app.core.database import get_db
+from app.core.auth import get_current_user, verify_site_access
 from app.db.models import Site
 from app.schemas.sites import SiteCreate, SiteResponse
 
@@ -14,6 +15,7 @@ router = APIRouter(prefix="/sites", tags=["sites"])
 async def create_site(
     site_data: SiteCreate,
     db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Create a new site.
@@ -39,6 +41,8 @@ async def create_site(
 async def get_site(
     site_id: UUID,
     db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+    site: Site = Depends(verify_site_access),
 ):
     """
     Get site details by ID.

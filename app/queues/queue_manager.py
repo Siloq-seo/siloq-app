@@ -97,7 +97,15 @@ class QueueManager:
             
         Returns:
             job_id: The job ID
+            
+        Raises:
+            HTTPException: If generation is disabled or limits exceeded
         """
+        # Check global kill switch and job limits
+        from app.core.rate_limit import GlobalGenerationKillSwitch
+        await GlobalGenerationKillSwitch.check_generation_allowed()
+        await GlobalGenerationKillSwitch.check_job_limits()
+        
         if not self.redis_client:
             await self.initialize()
 
