@@ -528,8 +528,8 @@ class ErrorCodeDictionary:
         ],
     )
     
-    LIFECYCLE_008: ClassVar[ErrorCode] = ErrorCode(
-        code="LIFECYCLE_008",
+    LIFECYCLE_011: ClassVar[ErrorCode] = ErrorCode(
+        code="LIFECYCLE_011",
         message="Link density exceeds maximum allowed ratios",
         doctrine_reference="DOCTRINE-LINK-001: Link density enforcement (Section 8.2)",
         remediation_steps=[
@@ -538,6 +538,116 @@ class ErrorCodeDictionary:
             "Review content and remove excessive links",
             "Ensure link density ratios are within acceptable limits",
         ],
+    )
+    
+    # Entitlement Errors (Section 8)
+    ENTITLEMENT_REQUIRED: ClassVar[ErrorCode] = ErrorCode(
+        code="ENTITLEMENT_REQUIRED",
+        message="This feature requires a paid plan",
+        doctrine_reference="Section 8: Entitlement & Plan Enforcement",
+        remediation_steps=[
+            "Upgrade to a paid plan to access this feature",
+            "Review plan tiers: trial, blueprint, operator, agency, empire",
+            "Contact support for assistance with plan selection",
+        ],
+        severity=ErrorSeverity.ERROR.value,
+    )
+    
+    PLAN_LIMIT_EXCEEDED: ClassVar[ErrorCode] = ErrorCode(
+        code="PLAN_LIMIT_EXCEEDED",
+        message="Your plan limit has been reached",
+        doctrine_reference="Section 8: Plan Limits Enforcement",
+        remediation_steps=[
+            "Upgrade to a higher tier plan",
+            "Wait for next billing cycle to reset limits",
+            "Contact support to discuss custom limits",
+        ],
+        severity=ErrorSeverity.ERROR.value,
+    )
+    
+    PROJECT_LIMIT_REACHED: ClassVar[ErrorCode] = ErrorCode(
+        code="PROJECT_LIMIT_REACHED",
+        message="Maximum number of projects for your plan",
+        doctrine_reference="Section 8: Project Limits",
+        remediation_steps=[
+            "Upgrade to a plan with more projects allowed",
+            "Remove unused projects to free up slots",
+            "Contact support for custom enterprise plans",
+        ],
+        severity=ErrorSeverity.ERROR.value,
+    )
+    
+    BLUEPRINT_ALREADY_USED: ClassVar[ErrorCode] = ErrorCode(
+        code="BLUEPRINT_ALREADY_USED",
+        message="Blueprint activation allows one target page only",
+        doctrine_reference="Section 8: Blueprint Activation",
+        remediation_steps=[
+            "Blueprint activation can only be used once per project",
+            "Upgrade to Operator plan for unlimited silos",
+            "Contact support if you need to reset blueprint activation",
+        ],
+        severity=ErrorSeverity.ERROR.value,
+    )
+    
+    # Security Errors (Section 7)
+    CROSS_PROJECT_ACCESS_DENIED: ClassVar[ErrorCode] = ErrorCode(
+        code="CROSS_PROJECT_ACCESS_DENIED",
+        message="Access denied: Cross-project access violation",
+        doctrine_reference="Section 7: Tenant Isolation",
+        remediation_steps=[
+            "Ensure project belongs to your organization",
+            "Verify project_id in request is correct",
+            "Contact support if you believe this is an error",
+        ],
+        severity=ErrorSeverity.CRITICAL.value,
+    )
+    
+    PROMPT_SCOPE_VIOLATION: ClassVar[ErrorCode] = ErrorCode(
+        code="PROMPT_SCOPE_VIOLATION",
+        message="Prompt contains forbidden cross-project data",
+        doctrine_reference="Section 7: Prompt Isolation",
+        remediation_steps=[
+            "Remove forbidden data from prompt",
+            "Ensure prompt only contains project-scoped data",
+            "Review prompt isolation guidelines",
+        ],
+        severity=ErrorSeverity.CRITICAL.value,
+    )
+    
+    AI_GENERATION_GLOBALLY_DISABLED: ClassVar[ErrorCode] = ErrorCode(
+        code="AI_GENERATION_GLOBALLY_DISABLED",
+        message="AI generation is globally disabled",
+        doctrine_reference="Section 7: Kill Switch",
+        remediation_steps=[
+            "AI generation has been disabled system-wide",
+            "Contact support for more information",
+            "Check system status page for updates",
+        ],
+        severity=ErrorSeverity.CRITICAL.value,
+    )
+    
+    AI_GENERATION_DISABLED_FOR_PROJECT: ClassVar[ErrorCode] = ErrorCode(
+        code="AI_GENERATION_DISABLED_FOR_PROJECT",
+        message="AI generation is disabled for this project",
+        doctrine_reference="Section 7: Per-Project Kill Switch",
+        remediation_steps=[
+            "AI generation has been disabled for this project",
+            "Contact support to re-enable generation",
+            "Check project AI settings",
+        ],
+        severity=ErrorSeverity.WARNING.value,
+    )
+    
+    AI_GENERATION_DISABLED_FOR_USER: ClassVar[ErrorCode] = ErrorCode(
+        code="AI_GENERATION_DISABLED_FOR_USER",
+        message="AI generation is disabled for your account",
+        doctrine_reference="Section 7: Per-User Kill Switch",
+        remediation_steps=[
+            "AI generation has been disabled for your account",
+            "Contact your organization administrator",
+            "Check account settings or contact support",
+        ],
+        severity=ErrorSeverity.WARNING.value,
     )
     
     # Error code registry for efficient lookup
