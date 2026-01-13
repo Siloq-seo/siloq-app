@@ -1,0 +1,76 @@
+name: siloq-app
+region: nyc
+
+services:
+  - name: web
+    # Python environment
+    environment_slug: python
+    
+    # GitHub configuration
+    github:
+      branch: main
+      deploy_on_push: true
+      repo: Siloq-seo/siloq-app
+    
+    # Build configuration
+    build_command: |
+      pip install --upgrade pip
+      pip install -r requirements.txt
+    
+    # Run command - adjust based on your actual run.py
+    # If run.py uses uvicorn, it should be something like:
+    # uvicorn app.main:app --host 0.0.0.0 --port 8080
+    run_command: python run.py
+    
+    # Health check endpoint
+    health_check:
+      http_path: /
+      initial_delay_seconds: 30
+      period_seconds: 10
+      timeout_seconds: 5
+      success_threshold: 1
+      failure_threshold: 3
+    
+    # HTTP configuration
+    http_port: 8080
+    
+    # Instance configuration
+    instance_count: 1
+    instance_size_slug: basic-xxs  # $5/month - upgrade to basic-xs ($12) for production
+    
+    # Environment variables - YOU MUST SET THESE IN DIGITAL OCEAN DASHBOARD
+    envs:
+      - key: DATABASE_URL
+        scope: RUN_TIME
+        type: SECRET
+      - key: REDIS_URL
+        scope: RUN_TIME
+        type: SECRET
+      - key: OPENAI_API_KEY
+        scope: RUN_TIME
+        type: SECRET
+      - key: SECRET_KEY
+        scope: RUN_TIME
+        type: SECRET
+      - key: ENVIRONMENT
+        scope: RUN_TIME
+        value: production
+      - key: PORT
+        scope: RUN_TIME
+        value: "8080"
+    
+    # Routes
+    routes:
+      - path: /
+
+# Optional: Managed Database (recommended for production)
+# Uncomment if you want Digital Ocean to manage your database
+# databases:
+#   - name: siloq-postgres
+#     engine: PG
+#     version: "16"
+#     production: false  # Set to true for production
+#     cluster_name: siloq-db-cluster
+
+# Optional: Add Valkey/Redis (we discussed this in previous chat)
+# You'll need to create this separately and add the connection string to envs
