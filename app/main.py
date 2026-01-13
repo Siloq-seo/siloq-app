@@ -10,6 +10,7 @@ from app.core.database import engine, Base
 from app.core.redis import redis_client
 from app.core.rate_limit import RateLimitMiddleware
 from app.api.routes import sites_router, pages_router, jobs_router, silos_router, onboarding_router
+from app.api.routes.wordpress import router as wordpress_router
 from app.queues.queue_manager import queue_manager
 from app.api.exception_handlers import (
     governance_error_handler,
@@ -108,6 +109,7 @@ app.include_router(pages_router, prefix="/api/v1")
 app.include_router(jobs_router, prefix="/api/v1")
 app.include_router(silos_router, prefix="/api/v1")
 app.include_router(onboarding_router, prefix="/api/v1")
+app.include_router(wordpress_router, prefix="/api/v1")
 
 
 @app.get("/")

@@ -239,23 +239,288 @@ class PageSilo(Base):
     )
 
 
+class Organization(Base):
+    """Organization: Top-level tenant boundary"""
+    __tablename__ = "organizations"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name = Column(String, nullable=False)
+    slug = Column(String, unique=True, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    deleted_at = Column(DateTime(timezone=True), nullable=True)
+
+    # Relationships
+    users = relationship("User", back_populates="organization", cascade="all, delete-orphan")
+    projects = relationship("Project", back_populates="organization", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        CheckConstraint("length(trim(name)) > 0", name="chk_org_name_not_empty"),
+        CheckConstraint("length(trim(slug)) > 0", name="chk_org_slug_not_empty"),
+        Index("idx_organizations_slug", "slug"),
+        Index("idx_organizations_deleted_at", "deleted_at"),
+    )
+
+
+class User(Base):
+    """User accounts with authentication and RBAC"""
+    __tablename__ = "users"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True)
+    email = Column(String, unique=True, nullable=False)
+    password_hash = Column(String, nullable=True)  # NULL for OAuth users
+    name = Column(String, nullable=True)
+    
+    # RBAC role
+    role = Column(String, nullable=False, default="viewer")
+    
+    # Security
+    generation_enabled = Column(Boolean, nullable=False, default=True)  # Per-user kill switch
+    mfa_enabled = Column(Boolean, nullable=False, default=False)
+    mfa_secret = Column(String, nullable=True)
+    
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    last_login_at = Column(DateTime(timezone=True), nullable=True)
+    deleted_at = Column(DateTime(timezone=True), nullable=True)
+
+    # Relationships
+    organization = relationship("Organization", back_populates="users")
+
+    __table_args__ = (
+        CheckConstraint("length(trim(email)) > 0", name="chk_user_email_not_empty"),
+        CheckConstraint("role IN ('owner', 'admin', 'editor', 'viewer')", name="chk_user_role_valid"),
+        Index("idx_users_email", "email"),
+        Index("idx_users_organization_id", "organization_id"),
+        Index("idx_users_role", "role"),
+    )
+
+
+class Project(Base):
+    """Project: Tenant isolation boundary (maps 1:1 to Site)"""
+    __tablename__ = "projects"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False)
+    site_id = Column(UUID(as_uuid=True), ForeignKey("sites.id", ondelete="CASCADE"), nullable=False, unique=True)
+    
+    name = Column(String, nullable=False)
+    slug = Column(String, nullable=False)
+    
+    # Soft delete
+    deleted_at = Column(DateTime(timezone=True), nullable=True)
+    deletion_reason = Column(Text, nullable=True)
+    
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    # Relationships
+    organization = relationship("Organization", back_populates="projects")
+    site = relationship("Site")
+    entitlements = relationship("ProjectEntitlement", back_populates="project", uselist=False, cascade="all, delete-orphan")
+    ai_settings = relationship("ProjectAISettings", back_populates="project", uselist=False, cascade="all, delete-orphan")
+
+    __table_args__ = (
+        CheckConstraint("length(trim(name)) > 0", name="chk_project_name_not_empty"),
+        CheckConstraint("length(trim(slug)) > 0", name="chk_project_slug_not_empty"),
+        UniqueConstraint("organization_id", "slug", name="uniq_project_slug_per_org"),
+        Index("idx_projects_organization_id", "organization_id"),
+        Index("idx_projects_site_id", "site_id"),
+        Index("idx_projects_slug", "organization_id", "slug"),
+    )
+
+
+class PlanType(str, enum.Enum):
+    """Plan types enumeration"""
+    TRIAL = "trial"
+    BLUEPRINT = "blueprint"
+    OPERATOR = "operator"
+    AGENCY = "agency"
+    EMPIRE = "empire"
+
+
+class ProjectEntitlement(Base):
+    """Project entitlements and feature access"""
+    __tablename__ = "project_entitlements"
+
+    project_id = Column(UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), primary_key=True)
+    
+    # Plan
+    plan_key = Column(
+        Enum(PlanType, name="plan_type_enum", values_callable=lambda x: [e.value for e in x]),
+        nullable=False,
+        default=PlanType.TRIAL
+    )
+    subscription_status = Column(String, default="active")
+    subscription_id = Column(String, nullable=True)  # Stripe subscription ID
+    stripe_customer_id = Column(String, nullable=True)  # Encrypted in application layer
+    
+    # Trial
+    trial_ends_at = Column(DateTime(timezone=True), nullable=True)
+    trial_started_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    # Blueprint (one-time unlock)
+    blueprint_activation_purchased = Column(Boolean, nullable=False, default=False)
+    blueprint_activated_at = Column(DateTime(timezone=True), nullable=True)
+    blueprint_target_page_id = Column(UUID(as_uuid=True), ForeignKey("pages.id", ondelete="SET NULL"), nullable=True)
+    
+    # Usage limits
+    max_concurrent_jobs = Column(Integer, default=5)
+    max_drafts_per_day = Column(Integer, default=50)
+    max_drafts_per_month = Column(Integer, nullable=True)
+    
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    # Relationships
+    project = relationship("Project", back_populates="entitlements")
+
+    __table_args__ = (
+        CheckConstraint(
+            "subscription_status IN ('active', 'canceled', 'past_due', 'trialing', 'incomplete', 'incomplete_expired')",
+            name="chk_subscription_status_valid"
+        ),
+        Index("idx_project_entitlements_plan_key", "plan_key"),
+        Index("idx_project_entitlements_subscription_id", "subscription_id"),
+    )
+
+
+class ProjectAISettings(Base):
+    """BYOK (Bring Your Own Key) AI settings with encrypted API keys"""
+    __tablename__ = "project_ai_settings"
+
+    project_id = Column(UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), primary_key=True)
+    
+    # BYOK: Encrypted API keys (AES-256-GCM)
+    api_key_encrypted = Column(Text, nullable=True)  # Base64-encoded encrypted key
+    api_key_iv = Column(Text, nullable=True)  # Base64-encoded IV
+    api_key_auth_tag = Column(Text, nullable=True)  # Base64-encoded auth tag
+    
+    # Provider settings
+    ai_provider = Column(String, default="openai")
+    ai_model = Column(String, default="gpt-4-turbo-preview")
+    
+    # Generation controls
+    generation_enabled = Column(Boolean, nullable=False, default=True)  # Per-project kill switch
+    max_retries = Column(Integer, default=3)
+    max_cost_per_job_usd = Column(Float, default=10.0)
+    
+    # API key validation tracking
+    api_key_last_validated_at = Column(DateTime(timezone=True), nullable=True)
+    api_key_validation_failures = Column(Integer, default=0)
+    api_key_last_failure_at = Column(DateTime(timezone=True), nullable=True)
+    
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    # Relationships
+    project = relationship("Project", back_populates="ai_settings")
+
+    __table_args__ = (
+        CheckConstraint("ai_provider IN ('openai', 'anthropic', 'google')", name="chk_ai_provider_valid"),
+        CheckConstraint("max_retries > 0", name="chk_max_retries_positive"),
+        CheckConstraint("max_cost_per_job_usd >= 0.0", name="chk_max_cost_non_negative"),
+    )
+
+
 class SystemEvent(Base):
-    """Comprehensive audit logging for all schema changes (v1.3.1)"""
+    """Enhanced immutable audit logging for all actions (V012)"""
     __tablename__ = "system_events"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    project_id = Column(UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), nullable=True)
+    
+    # Actor
+    actor_id = Column(UUID(as_uuid=True), nullable=True)  # user or null for system
+    actor_type = Column(String, nullable=False)
+    actor_ip = Column(String, nullable=True)  # INET in PostgreSQL
+    actor_user_agent = Column(Text, nullable=True)
+    
+    # Event
     event_type = Column(Text, nullable=False)
-    entity_type = Column(Text, nullable=False)
-    entity_id = Column(UUID(as_uuid=True), nullable=True)
-    payload = Column(JSONB, default=lambda: {})
+    severity = Column(String, nullable=False)
+    action = Column(Text, nullable=False)
+    
+    # Target
+    target_entity_type = Column(Text, nullable=True)
+    target_entity_id = Column(UUID(as_uuid=True), nullable=True)
+    
+    # Details
+    payload = Column(JSONB, nullable=False, default=lambda: {})
+    payload_hash = Column(Text, nullable=False)  # SHA-256 hash for integrity
+    doctrine_section = Column(Text, nullable=True)
+    
+    # Audit
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     __table_args__ = (
         CheckConstraint("length(trim(event_type)) > 0", name="chk_event_type_not_empty"),
-        CheckConstraint("length(trim(entity_type)) > 0", name="chk_entity_type_not_empty"),
-        Index("idx_system_events_entity", "entity_type", "entity_id"),
-        Index("idx_system_events_created_at", "created_at"),
-        Index("idx_system_events_type", "event_type"),
+        CheckConstraint("actor_type IN ('user', 'system', 'agent')", name="chk_actor_type_valid"),
+        CheckConstraint("severity IN ('INFO', 'WARN', 'BLOCK', 'CRITICAL')", name="chk_severity_valid"),
+        CheckConstraint("length(trim(action)) > 0", name="chk_action_not_empty"),
+        Index("ix_system_events_project_time", "project_id", "created_at"),
+        Index("ix_system_events_type", "event_type"),
+        Index("ix_system_events_severity", "severity"),
+        Index("ix_system_events_actor", "actor_id", "created_at"),
+        Index("ix_system_events_target", "target_entity_type", "target_entity_id"),
+    )
+
+
+class AIUsageLog(Base):
+    """AI token usage and cost tracking"""
+    __tablename__ = "ai_usage_logs"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    project_id = Column(UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
+    generation_job_id = Column(UUID(as_uuid=True), ForeignKey("generation_jobs.id", ondelete="SET NULL"), nullable=True)
+    
+    # Usage metrics
+    provider = Column(String, nullable=False)
+    model = Column(String, nullable=False)
+    input_tokens = Column(Integer, default=0)
+    output_tokens = Column(Integer, default=0)
+    total_tokens = Column(Integer, default=0)
+    cost_usd = Column(Float, default=0.0)
+    
+    # Request metadata
+    prompt_length = Column(Integer, nullable=True)
+    response_length = Column(Integer, nullable=True)
+    
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        CheckConstraint("input_tokens >= 0 AND output_tokens >= 0 AND total_tokens >= 0", name="chk_tokens_non_negative"),
+        CheckConstraint("cost_usd >= 0.0", name="chk_cost_non_negative"),
+        Index("idx_ai_usage_project_time", "project_id", "created_at"),
+        Index("idx_ai_usage_job_id", "generation_job_id"),
+    )
+
+
+class MonthlyUsageSummary(Base):
+    """Aggregated monthly usage per project"""
+    __tablename__ = "monthly_usage_summary"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    project_id = Column(UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
+    
+    year = Column(Integer, nullable=False)
+    month = Column(Integer, nullable=False)
+    
+    # Aggregated metrics
+    total_drafts_generated = Column(Integer, default=0)
+    total_tokens = Column(Integer, default=0)
+    total_cost_usd = Column(Float, default=0.0)
+    total_jobs = Column(Integer, default=0)
+    
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        CheckConstraint("month >= 1 AND month <= 12", name="chk_month_range"),
+        UniqueConstraint("project_id", "year", "month", name="uniq_monthly_usage_per_project"),
+        Index("idx_monthly_usage_project", "project_id", "year", "month"),
     )
 
 
