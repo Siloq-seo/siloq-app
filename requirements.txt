@@ -23,6 +23,9 @@ openai==1.54.4
 # Background Jobs
 celery==5.4.0
 
+# Authentication
+python-jose[cryptography]==3.3.0
+
 # Utilities
 python-dotenv==1.0.1
 python-multipart==0.0.12
