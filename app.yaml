@@ -14,8 +14,8 @@ services:
     
     # Build configuration
     build_command: |
-      pip install --upgrade pip
-      pip install -r requirements.txt
+      pip install --upgrade pip setuptools wheel
+      pip install --no-cache-dir -r requirements.txt
     
     # Run command - adjust based on your actual run.py
     # If run.py uses uvicorn, it should be something like:
@@ -35,8 +35,8 @@ services:
     http_port: 8080
     
     # Instance configuration
-    instance_count: 1
-    instance_size_slug: basic-xxs  # $5/month - upgrade to basic-xs ($12) for production
+    instance_count: 1  # Number of app instances (1 = $12/mo, 2 = $24/mo)
+    instance_size_slug: basic-xs  # $12/month for 1GB RAM (recommended for production)
     
     # Environment variables - YOU MUST SET THESE IN DIGITAL OCEAN DASHBOARD
     envs:
