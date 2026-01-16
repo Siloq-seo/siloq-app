@@ -3,9 +3,15 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sess
 from sqlalchemy.orm import declarative_base
 from app.core.config import settings
 
+# Ensure database_url uses asyncpg driver for async operations
+# Digital Ocean and other platforms may inject postgresql:// URLs
+database_url = settings.database_url
+if database_url.startswith('postgresql://') and '+asyncpg' not in database_url:
+    database_url = database_url.replace('postgresql://', 'postgresql+asyncpg://', 1)
+
 # Create async engine
 engine = create_async_engine(
-    settings.database_url,
+    database_url,
     echo=settings.environment == "development",
     future=True,
 )
