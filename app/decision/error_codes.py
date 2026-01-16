@@ -142,7 +142,6 @@ class ErrorCodeDictionary:
             "Verify similarity score is below 0.85 threshold",
         ],
     )
-    _register_error(NEAR_DUPLICATE_INTENT)
     
     PREFLIGHT_008: ClassVar[ErrorCode] = ErrorCode(
         code="PREFLIGHT_008",
