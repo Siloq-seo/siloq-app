@@ -70,17 +70,20 @@ def get_cors_origins() -> list:
         # Development: allow all origins
         return ["*"]
 
-def get_cors_methods() -> list:
-    """Get CORS methods based on environment"""
-    if settings.cors_methods == "*":
-        return ["*"]
-    return [method.strip() for method in settings.cors_methods.split(",")]
 
-def get_cors_headers() -> list:
-    """Get CORS headers based on environment"""
-    if settings.cors_headers == "*":
+"""Get CORS methods based on environment"""
+def get_cors_methods() -> list:
+    if settings.cors_allow_methods == "*":
         return ["*"]
-    return [header.strip() for header in settings.cors_headers.split(",")]
+    return [method.strip() for method in settings.cors_allow_methods.split(",")]
+
+
+"""Get CORS headers based on environment"""
+def get_cors_headers() -> list:
+    if settings.cors_allow_headers == "*":
+        return ["*"]
+    return [header.strip() for header in settings.cors_allow_headers.split(",")]
+
 
 app.add_middleware(
     CORSMiddleware,
