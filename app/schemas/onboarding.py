@@ -160,7 +160,7 @@ class OnboardingQuestionnaire(BaseModel):
     risk_assessment: RiskAssessmentInput = Field(..., description="D. THE WHEN (Risk Assessment)")
     site_id: Optional[str] = Field(None, description="Optional site ID if updating existing site")
     
-    @root_validator
+    @root_validator(skip_on_failure=True)
     def validate_scope_consistency(cls, values):
         """Validate scope consistency across questionnaire."""
         entity_injection = values.get("entity_injection")
