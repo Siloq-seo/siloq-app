@@ -3,6 +3,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from pydantic_settings import BaseSettings
+from pydantic import field_validator
 from typing import Optional
 
 
@@ -12,6 +13,19 @@ class Settings(BaseSettings):
     # Database
     database_url: str
     database_url_sync: str
+
+    @field_validator('database_url')
+    @classmethod
+    def ensure_async_driver(cls, v: str) -> str:
+        """
+        Ensure DATABASE_URL uses asyncpg driver for async SQLAlchemy.
+
+        Digital Ocean and other platforms may inject postgresql:// URLs,
+        but we need postgresql+asyncpg:// for async operations.
+        """
+        if v.startswith('postgresql://') and '+asyncpg' not in v:
+            return v.replace('postgresql://', 'postgresql+asyncpg://', 1)
+        return v
 
     # Redis
     redis_url: str = "redis://localhost:6379/0"
