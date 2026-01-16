@@ -78,17 +78,17 @@ class RedirectManager:
                     Page.status == ContentStatus.PUBLISHED,  # Target must be published
                 )
             )
-                result = await db.execute(query)
-                target_page = result.scalar_one_or_none()
+            result = await db.execute(query)
+            target_page = result.scalar_one_or_none()
+            
+            if not target_page:
+                issues.append(f"Target page not found at path: {redirect_to}")
+            else:
+                target_page_id = target_page.id
                 
-                if not target_page:
-                    issues.append(f"Target page not found at path: {redirect_to}")
-                else:
-                    target_page_id = target_page.id
-                    
-                    # Check target is not the same page
-                    if target_page.id == page.id:
-                        issues.append("Cannot redirect to self")
+                # Check target is not the same page
+                if target_page.id == page.id:
+                    issues.append("Cannot redirect to self")
         else:
             # External URL - validate format
             from urllib.parse import urlparse
