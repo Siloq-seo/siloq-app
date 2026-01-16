@@ -136,9 +136,9 @@ class Page(Base):
         CheckConstraint("length(trim(path)) > 0", name="chk_page_path_not_empty"),
         CheckConstraint("length(trim(title)) > 0", name="chk_page_title_not_empty"),
         CheckConstraint("authority_score >= 0.0 AND authority_score <= 1.0", name="chk_authority_score_range"),
-        UniqueConstraint("site_id", "normalized_path", name="uniq_page_normalized_path_per_site"),
+        # Note: normalized_path unique constraint and index are handled in migrations
+        # since it's a PostgreSQL GENERATED column not defined in SQLAlchemy model
         Index("idx_pages_site_id", "site_id"),
-        Index("idx_pages_normalized_path", "normalized_path"),
         Index("idx_pages_status", "status"),
         Index("idx_pages_is_proposal", "is_proposal"),
     )
