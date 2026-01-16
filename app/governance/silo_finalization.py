@@ -8,6 +8,7 @@ from sqlalchemy import select, func, and_
 from app.db.models import Silo, Page, PageSilo
 from app.governance.reverse_silos import ReverseSiloEnforcer
 from app.governance.authority_funnel import AuthorityFunnel
+from uuid import UUID
 
 # Constants
 MIN_PAGES_FOR_FINALIZATION = 3
