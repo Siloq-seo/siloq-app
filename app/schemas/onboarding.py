@@ -101,7 +101,7 @@ class EntityInjectionInput(BaseModel):
         description="List 1 local law or regional term (required if scope=local)"
     )
     
-    @root_validator
+    @root_validator(skip_on_failure=True)
     def validate_scope_requirements(cls, values):
         """Validate requirements based on scope."""
         scope = values.get("scope")
