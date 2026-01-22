@@ -1,4 +1,7 @@
 """Security utilities for encryption, API key handling, and tenant isolation"""
+from dotenv import load_dotenv
+load_dotenv()
+
 import os
 import base64
 import hashlib

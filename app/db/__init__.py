@@ -9,7 +9,7 @@ from app.db.models import (
     Organization, User, Project, ProjectEntitlement, ProjectAISettings,
     SystemEvent, AIUsageLog, MonthlyUsageSummary,
     CannibalizationCheck, Cluster, ClusterPage,
-    AnchorLink, GenerationJob, ContentReservation, APIKey
+    AnchorLink, GenerationJob, ContentReservation, APIKey, Scan
 )
 
 __all__ = [
@@ -20,5 +20,5 @@ __all__ = [
     "Organization", "User", "Project", "ProjectEntitlement", "ProjectAISettings",
     "SystemEvent", "AIUsageLog", "MonthlyUsageSummary",
     "CannibalizationCheck", "Cluster", "ClusterPage",
-    "AnchorLink", "GenerationJob", "ContentReservation", "APIKey"
+    "AnchorLink", "GenerationJob", "ContentReservation", "APIKey", "Scan"
 ]

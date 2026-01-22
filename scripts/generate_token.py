@@ -15,6 +15,9 @@ Or set it inline:
 Example:
     SECRET_KEY="my-secret-key" python3 generate_token.py "user-123" "account-456"
 """
+from dotenv import load_dotenv
+load_dotenv()
+
 import os
 import sys
 from datetime import datetime, timedelta

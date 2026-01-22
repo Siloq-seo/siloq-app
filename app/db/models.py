@@ -712,3 +712,71 @@ class APIKey(Base):
         Index("idx_api_keys_site_id", "site_id"),
         Index("idx_api_keys_is_active", "is_active"),
     )
+
+
+class Scan(Base):
+    """Website SEO scan results"""
+    __tablename__ = "scans"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    site_id = Column(UUID(as_uuid=True), ForeignKey("sites.id", ondelete="SET NULL"), nullable=True)
+    url = Column(Text, nullable=False)
+    domain = Column(Text, nullable=False)
+    
+    # Scan metadata
+    scan_type = Column(String, nullable=False, default='full')
+    status = Column(String, nullable=False, default='pending')
+    error_message = Column(Text, nullable=True)
+    
+    # Overall score
+    overall_score = Column(Float, nullable=True)
+    grade = Column(String, nullable=True)
+    
+    # Category scores
+    technical_score = Column(Float, nullable=True)
+    content_score = Column(Float, nullable=True)
+    structure_score = Column(Float, nullable=True)
+    performance_score = Column(Float, nullable=True)
+    seo_score = Column(Float, nullable=True)
+    
+    # Detailed results
+    technical_details = Column(JSONB, default=lambda: {})
+    content_details = Column(JSONB, default=lambda: {})
+    structure_details = Column(JSONB, default=lambda: {})
+    performance_details = Column(JSONB, default=lambda: {})
+    seo_details = Column(JSONB, default=lambda: {})
+    
+    # Recommendations
+    recommendations = Column(JSONB, default=lambda: [])
+    
+    # Scan execution
+    pages_crawled = Column(Integer, default=0)
+    scan_duration_seconds = Column(Integer, nullable=True)
+    started_at = Column(DateTime(timezone=True), nullable=True)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+    
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    
+    # Relationships
+    site = relationship("Site", backref="scans")
+    
+    __table_args__ = (
+        CheckConstraint("length(trim(url)) > 0", name="chk_scan_url_not_empty"),
+        CheckConstraint("length(trim(domain)) > 0", name="chk_scan_domain_not_empty"),
+        CheckConstraint("scan_type IN ('full', 'quick', 'technical')", name="chk_scan_type_valid"),
+        CheckConstraint("status IN ('pending', 'processing', 'completed', 'failed')", name="chk_scan_status_valid"),
+        CheckConstraint("overall_score IS NULL OR (overall_score >= 0.0 AND overall_score <= 100.0)", name="chk_overall_score_range"),
+        CheckConstraint("technical_score IS NULL OR (technical_score >= 0.0 AND technical_score <= 100.0)", name="chk_technical_score_range"),
+        CheckConstraint("content_score IS NULL OR (content_score >= 0.0 AND content_score <= 100.0)", name="chk_content_score_range"),
+        CheckConstraint("structure_score IS NULL OR (structure_score >= 0.0 AND structure_score <= 100.0)", name="chk_structure_score_range"),
+        CheckConstraint("performance_score IS NULL OR (performance_score >= 0.0 AND performance_score <= 100.0)", name="chk_performance_score_range"),
+        CheckConstraint("seo_score IS NULL OR (seo_score >= 0.0 AND seo_score <= 100.0)", name="chk_seo_score_range"),
+        CheckConstraint("grade IS NULL OR grade IN ('A+', 'A', 'B+', 'B', 'C+', 'C', 'D+', 'D', 'F')", name="chk_grade_valid"),
+        Index("idx_scans_domain", "domain"),
+        Index("idx_scans_site_id", "site_id"),
+        Index("idx_scans_status", "status"),
+        Index("idx_scans_created_at", "created_at"),
+        Index("idx_scans_overall_score", "overall_score"),
+    )

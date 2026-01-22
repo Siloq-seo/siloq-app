@@ -1,4 +1,7 @@
 """Server runner for both development and production"""
+from dotenv import load_dotenv
+load_dotenv()
+
 import uvicorn
 import os
 

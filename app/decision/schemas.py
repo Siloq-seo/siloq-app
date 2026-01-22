@@ -67,7 +67,7 @@ class ValidationPayload(BaseModel):
     class Config:
         """Pydantic configuration."""
         
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "page_id": "123e4567-e89b-12d3-a456-426614174000",
                 "site_id": "123e4567-e89b-12d3-a456-426614174001",
@@ -118,7 +118,7 @@ class ValidationResult(BaseModel):
     class Config:
         """Pydantic configuration."""
         
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "passed": False,
                 "errors": [
@@ -156,7 +156,7 @@ class StateTransitionRequest(BaseModel):
     class Config:
         """Pydantic configuration."""
         
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "target_state": "preflight_approved",
                 "reason": "Validation passed",
@@ -186,7 +186,7 @@ class StateTransitionResponse(BaseModel):
     class Config:
         """Pydantic configuration."""
         
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "success": True,
                 "current_state": "preflight_approved",

@@ -1,4 +1,7 @@
 """Utility functions for CLI commands"""
+from dotenv import load_dotenv
+load_dotenv()
+
 import os
 from typing import Optional, Tuple
 from urllib.parse import urlparse
