@@ -412,3 +412,8 @@ class GlobalSyncValidator:
             "message": "Multilingual silo sync completed",
         }
 
+
+# Alias for backward compatibility with imports
+# GlobalSyncManager is expected by app/governance/__init__.py
+GlobalSyncManager = GlobalSyncValidator
+
