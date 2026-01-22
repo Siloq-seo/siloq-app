@@ -11,7 +11,7 @@ from app.governance.ai import (
 from app.governance.content import (
     CannibalizationDetector,
     NearDuplicateDetector,
-    VectorSimilarityChecker,
+    VectorSimilarity,
     PublishingSafety,
 )
 
@@ -69,7 +69,7 @@ from app.governance.utils import (
     get_page_silo_id,
     get_page_slug,
     is_safe_to_publish,
-    GEOValidationError,
+    GeoException,
 )
 
 __all__ = [
@@ -80,7 +80,7 @@ __all__ = [
     # Content
     "CannibalizationDetector",
     "NearDuplicateDetector",
-    "VectorSimilarityChecker",
+    "VectorSimilarity",
     "PublishingSafety",
     # Structure
     "ReverseSiloEnforcer",
