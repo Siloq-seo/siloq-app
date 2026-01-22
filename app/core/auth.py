@@ -5,6 +5,7 @@ from uuid import UUID
 import hashlib
 from fastapi import Depends, HTTPException, status, Header
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from typing import Optional
 from jose import JWTError, jwt
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update
@@ -97,13 +98,18 @@ async def verify_api_key(api_key: str, db: AsyncSession) -> Optional[dict]:
 
 
 async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(HTTPBearer(auto_error=False)),
+    x_api_key: Optional[str] = Header(None, alias="X-API-Key"),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """
     Get current authenticated user from JWT token or API key.
 
     Supports both JWT tokens and API keys for authentication.
+    API keys can be provided via:
+    - Authorization header: "Bearer sk-xxx" or "Bearer jwt-token"
+    - X-API-Key header: "sk-xxx" (for WordPress plugin compatibility)
+    
     API keys are identified by the 'sk-' prefix.
 
     Returns:
@@ -112,6 +118,50 @@ async def get_current_user(
     Raises:
         HTTPException: If token/key is invalid or missing
     """
+    # Check X-API-Key header first (WordPress plugin compatibility)
+    if x_api_key:
+        if x_api_key.startswith('sk-'):
+            api_key_info = await verify_api_key(x_api_key, db)
+            if api_key_info:
+                return api_key_info
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid API key",
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+        else:
+            # Treat as JWT token in X-API-Key header
+            try:
+                payload = decode_access_token(x_api_key)
+                user_id: Optional[str] = payload.get("sub")
+                account_id: Optional[str] = payload.get("account_id")
+                if user_id is None:
+                    raise HTTPException(
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        detail="Invalid authentication credentials",
+                        headers={"WWW-Authenticate": "Bearer"},
+                    )
+                return {
+                    "user_id": user_id,
+                    "account_id": account_id,
+                    "auth_type": "jwt",
+                }
+            except AuthError:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid authentication credentials",
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+    
+    # Fall back to Authorization header if X-API-Key not provided
+    if not credentials:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
     try:
         token = credentials.credentials
 
