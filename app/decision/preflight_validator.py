@@ -9,11 +9,11 @@ from sqlalchemy import select, and_
 from app.decision.error_codes import ErrorCode, ErrorCodeDictionary
 from app.decision.schemas import ValidationPayload, ValidationResult
 from app.db.models import Page, Site, Silo, Keyword, SiteType
-from app.governance.reverse_silos import ReverseSiloEnforcer
-from app.governance.cannibalization import CannibalizationDetector
-from app.governance.near_duplicate_detector import NearDuplicateDetector
-from app.governance.geo_exceptions import GeoException
-from app.governance.reservation_system import ReservationSystem
+from app.governance.structure.reverse_silos import ReverseSiloEnforcer
+from app.governance.content.cannibalization import CannibalizationDetector
+from app.governance.content.near_duplicate_detector import NearDuplicateDetector
+from app.governance.utils.geo_exceptions import GeoException
+from app.governance.sync.reservation_system import ReservationSystem
 
 
 # Constants

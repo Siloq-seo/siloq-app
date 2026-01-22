@@ -100,35 +100,44 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed system architecture and [SET
 
 ```
 siloq/
-├── app/
-│   ├── core/           # Core configuration and utilities
-│   ├── db/             # Database models
-│   ├── governance/     # Governance engine components
-│   │   ├── ai_output.py              # AI output governance
-│   │   ├── structured_output.py      # Week 5: Structured output generator
-│   │   ├── cost_calculator.py         # Week 5: Cost tracking
-│   │   ├── lifecycle_gates.py         # Week 6: Lifecycle gate manager
-│   │   ├── redirect_manager.py        # Week 6: Redirect enforcement
-│   │   ├── experience_verification.py  # 2025 SEO: First-hand experience verification
-│   │   ├── geo_formatting.py          # 2025 SEO: GEO/AI citation-ready formatting
-│   │   ├── core_web_vitals.py         # 2025 SEO: Mobile-first rendering validation
-│   │   ├── cross_platform_sync.py     # Future: Cross-platform entity sync
-│   │   ├── agent_friendly_interface.py # Future: Agent-Friendly Interface (AFI)
-│   │   ├── reputation_monitor.py      # Future: Reputation monitoring
-│   │   └── page_helpers.py            # Page model helper utilities
-│   ├── decision/       # Decision engine (preflight/postcheck)
-│   ├── queues/         # Redis-based job processors
-│   ├── schemas/        # Pydantic schemas and JSON-LD generation
-│   ├── services/       # Service layer for business logic
-│   ├── api/            # FastAPI routes (organized by domain)
-│   │   ├── routes/     # Separate route modules
-│   │   ├── dependencies.py        # Dependency injection
-│   │   └── exception_handlers.py # Custom exception handlers
-│   ├── types.py        # TypedDict type definitions
-│   └── exceptions.py   # Custom exception classes
-├── migrations/         # SQL migrations (V001-V010)
-└── tests/             # Test files
+├── app/                    # Main application code
+│   ├── core/              # Core configuration and utilities
+│   ├── db/                # Database models and enums
+│   ├── governance/        # Governance engine (organized by domain)
+│   │   ├── ai/           # AI governance
+│   │   ├── content/      # Content quality checks
+│   │   ├── structure/    # Structural governance
+│   │   ├── seo/          # SEO governance
+│   │   ├── lifecycle/    # Lifecycle management
+│   │   ├── authority/    # Authority management
+│   │   ├── sync/         # Synchronization
+│   │   ├── monitoring/   # Monitoring
+│   │   ├── future/       # Future features
+│   │   └── utils/        # Governance utilities
+│   ├── decision/         # Decision engine (preflight/postcheck)
+│   ├── queues/           # Redis-based job processors
+│   ├── schemas/          # Pydantic schemas and JSON-LD generation
+│   ├── services/         # Service layer for business logic
+│   ├── utils/            # Shared utilities
+│   ├── api/              # FastAPI routes (organized by domain)
+│   │   ├── routes/       # Separate route modules
+│   │   ├── dependencies.py
+│   │   └── exception_handlers.py
+│   ├── types.py          # TypedDict type definitions
+│   └── exceptions.py     # Custom exception classes
+├── tests/                 # Test files
+├── migrations/           # SQL migrations (V001-V013)
+├── scripts/              # Utility scripts
+├── docs/                 # Documentation (organized by category)
+│   ├── setup/           # Setup guides
+│   ├── guides/          # User guides
+│   ├── integration/     # Integration guides
+│   ├── architecture/   # Architecture docs
+│   └── reference/       # Reference documentation
+└── wordpress-plugin/    # WordPress plugin code
 ```
+
+See [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) for detailed structure documentation.
 
 ## Week 5: AI Draft Engine Features
 

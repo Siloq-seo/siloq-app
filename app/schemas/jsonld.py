@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.db.models import Page, Site, Silo
-from app.governance.page_helpers import get_page_silo_id, get_page_slug
+from app.governance.utils.page_helpers import get_page_silo_id, get_page_slug
 
 
 class JSONLDGenerator:

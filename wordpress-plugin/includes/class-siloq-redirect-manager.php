@@ -160,10 +160,14 @@ class Siloq_Redirect_Manager {
      */
     public function clear_all_redirects() {
         global $wpdb;
-        
-        $table = $wpdb->prefix . 'siloq_redirects';
-        
-        return $wpdb->query("TRUNCATE TABLE {$table}");
+
+        $table_name = $wpdb->prefix . 'siloq_redirects';
+
+        // Use DELETE instead of TRUNCATE for better compatibility and proper escaping
+        // TRUNCATE cannot be prepared in WordPress, so we use DELETE which is functionally similar
+        return $wpdb->query(
+            $wpdb->prepare("DELETE FROM %i", $table_name)
+        );
     }
 }
 

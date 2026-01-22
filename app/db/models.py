@@ -1,32 +1,16 @@
 """Database models for Siloq governance engine - Schema v1.1 + v1.3.1"""
 from sqlalchemy import (
-    Column, Integer, String, Text, DateTime, Boolean, Float, 
+    Column, Integer, String, Text, DateTime, Boolean, Float,
     ForeignKey, JSON, Enum, CheckConstraint, UniqueConstraint, Index
 )
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from pgvector.sqlalchemy import Vector
-import enum
 import uuid
 
 from app.core.database import Base
-
-
-class ContentStatus(str, enum.Enum):
-    """Content publication status"""
-    DRAFT = "draft"
-    PENDING_REVIEW = "pending_review"
-    APPROVED = "approved"
-    PUBLISHED = "published"
-    DECOMMISSIONED = "decommissioned"
-    BLOCKED = "blocked"
-
-
-class SiteType(str, enum.Enum):
-    """Site type enumeration"""
-    LOCAL_SERVICE = "LOCAL_SERVICE"
-    ECOMMERCE = "ECOMMERCE"
+from app.db.enums import ContentStatus, SiteType, PlanType
 
 
 class Site(Base):
@@ -330,15 +314,6 @@ class Project(Base):
         Index("idx_projects_site_id", "site_id"),
         Index("idx_projects_slug", "organization_id", "slug"),
     )
-
-
-class PlanType(str, enum.Enum):
-    """Plan types enumeration"""
-    TRIAL = "trial"
-    BLUEPRINT = "blueprint"
-    OPERATOR = "operator"
-    AGENCY = "agency"
-    EMPIRE = "empire"
 
 
 class ProjectEntitlement(Base):
@@ -696,4 +671,44 @@ class ContentReservation(Base):
         Index("idx_reservations_site_id", "site_id"),
         Index("idx_reservations_intent_hash", "site_id", "intent_hash"),
         Index("idx_reservations_expires_at", "expires_at"),
+    )
+
+
+class APIKey(Base):
+    """API keys for WordPress plugin and external integrations"""
+    __tablename__ = "api_keys"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    site_id = Column(UUID(as_uuid=True), ForeignKey("sites.id", ondelete="CASCADE"), nullable=False)
+    key_hash = Column(String(64), unique=True, nullable=False)  # SHA-256 hash of the API key
+    key_prefix = Column(String(10), nullable=False)  # First 8 chars for identification
+    name = Column(String, nullable=False)  # Descriptive name (e.g., "WordPress Plugin")
+
+    # Permissions
+    scopes = Column(JSONB, default=lambda: ["read", "write"])  # List of allowed scopes
+
+    # Status
+    is_active = Column(Boolean, nullable=False, default=True)
+    revoked_at = Column(DateTime(timezone=True), nullable=True)
+    revoked_reason = Column(Text, nullable=True)
+
+    # Usage tracking
+    last_used_at = Column(DateTime(timezone=True), nullable=True)
+    usage_count = Column(Integer, default=0, nullable=False)
+
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    expires_at = Column(DateTime(timezone=True), nullable=True)  # Optional expiration
+
+    # Relationships
+    site = relationship("Site")
+
+    __table_args__ = (
+        CheckConstraint("length(trim(name)) > 0", name="chk_api_key_name_not_empty"),
+        CheckConstraint("length(trim(key_hash)) = 64", name="chk_key_hash_length"),
+        CheckConstraint("length(trim(key_prefix)) >= 8", name="chk_key_prefix_length"),
+        CheckConstraint("usage_count >= 0", name="chk_usage_count_non_negative"),
+        Index("idx_api_keys_key_hash", "key_hash"),
+        Index("idx_api_keys_site_id", "site_id"),
+        Index("idx_api_keys_is_active", "is_active"),
     )

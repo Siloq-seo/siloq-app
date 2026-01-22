@@ -48,13 +48,8 @@ async def get_page(
         
     Returns:
         Page data
-        
-    Raises:
-        HTTPException: 404 if page not found
     """
-    page = await db.get(Page, page_id)
-    if not page:
-        raise HTTPException(status_code=404, detail="Page not found")
+    # Page existence and tenant access are enforced by verify_page_access
     return page
 
 
@@ -76,14 +71,8 @@ async def get_page_jsonld(
         
     Returns:
         JSON-LD schema object
-        
-    Raises:
-        HTTPException: 404 if page not found
     """
-    page = await db.get(Page, page_id)
-    if not page:
-        raise HTTPException(status_code=404, detail="Page not found")
-
+    # Page existence and tenant access are enforced by verify_page_access
     schema = await jsonld_generator.generate_schema(db, page)
     return schema
 
@@ -92,6 +81,8 @@ async def get_page_jsonld(
 async def check_publish_gates(
     page_id: UUID,
     db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+    page: Page = Depends(verify_page_access),
     gate_manager = Depends(get_lifecycle_gate_manager),
 ):
     """
@@ -115,14 +106,8 @@ async def check_publish_gates(
         
     Returns:
         Gate check results with detailed status for each gate
-        
-    Raises:
-        HTTPException: 404 if page not found
     """
-    page = await db.get(Page, page_id)
-    if not page:
-        raise HTTPException(status_code=404, detail="Page not found")
-    
+    # Page existence and tenant access are enforced by verify_page_access
     gates_result = await gate_manager.check_all_gates(db, page)
     await db.commit()
     
@@ -133,6 +118,8 @@ async def check_publish_gates(
 async def publish_page(
     page_id: UUID,
     db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+    page: Page = Depends(verify_page_access),
     gate_manager = Depends(get_lifecycle_gate_manager),
 ):
     """
@@ -161,12 +148,8 @@ async def publish_page(
         
     Raises:
         LifecycleGateError: If any gate fails
-        HTTPException: 404 if page not found
     """
-    page = await db.get(Page, page_id)
-    if not page:
-        raise HTTPException(status_code=404, detail="Page not found")
-
+    # Page existence and tenant access are enforced by verify_page_access
     # Check all lifecycle gates
     gates_result = await gate_manager.check_all_gates(db, page)
 
@@ -244,6 +227,8 @@ async def decommission_page(
     page_id: UUID,
     request: DecommissionRequest,
     db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+    page: Page = Depends(verify_page_access),
     publishing_safety = Depends(get_publishing_safety),
 ):
     """
@@ -266,12 +251,8 @@ async def decommission_page(
         
     Raises:
         DecommissionError: If redirect validation fails
-        HTTPException: 404 if page not found
     """
-    page = await db.get(Page, page_id)
-    if not page:
-        raise HTTPException(status_code=404, detail="Page not found")
-
+    # Page existence and tenant access are enforced by verify_page_access
     # Decommission with redirect enforcement
     result = await publishing_safety.preserve_authority_on_decommission(
         db, page, request.redirect_to
@@ -293,6 +274,8 @@ async def validate_page(
     page_id: UUID,
     payload: ValidationPayload,
     db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+    page: Page = Depends(verify_page_access),
     preflight_validator = Depends(get_preflight_validator),
 ):
     """
@@ -314,13 +297,9 @@ async def validate_page(
         Validation result with passed status and errors/warnings
         
     Raises:
-        HTTPException: 404 if page not found, 400 if page_id mismatch
+        HTTPException: 400 if page_id mismatch
     """
-    # Verify page exists
-    page = await db.get(Page, page_id)
-    if not page:
-        raise HTTPException(status_code=404, detail="Page not found")
-    
+    # Page existence and tenant access are enforced by verify_page_access
     # Ensure payload page_id matches URL
     if payload.page_id != page_id:
         raise HTTPException(
@@ -388,10 +367,7 @@ async def check_similarity(
     Raises:
         HTTPException: 404 if page not found, 400 if embedding missing
     """
-    page = await db.get(Page, page_id)
-    if not page:
-        raise HTTPException(status_code=404, detail="Page not found")
-    
+    # Page existence and tenant access are enforced by verify_page_access
     if not page.embedding:
         raise HTTPException(
             status_code=400, detail="Page must have embedding for similarity check"
@@ -408,6 +384,8 @@ async def check_similarity(
 async def postcheck_validation(
     page_id: UUID,
     db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+    page: Page = Depends(verify_page_access),
     postcheck_validator = Depends(get_postcheck_validator),
 ):
     """
@@ -422,12 +400,9 @@ async def postcheck_validation(
         Postcheck validation results
         
     Raises:
-        HTTPException: 404 if page not found, 400 if embedding missing
+        HTTPException: 400 if embedding missing
     """
-    page = await db.get(Page, page_id)
-    if not page:
-        raise HTTPException(status_code=404, detail="Page not found")
-    
+    # Page existence and tenant access are enforced by verify_page_access
     if not page.embedding:
         raise HTTPException(
             status_code=400, detail="Page must have embedding for post-check"

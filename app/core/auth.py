@@ -1,16 +1,17 @@
 """Authentication and authorization utilities"""
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, Union
 from uuid import UUID
-from fastapi import Depends, HTTPException, status
+import hashlib
+from fastapi import Depends, HTTPException, status, Header
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError, jwt
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 from app.core.config import settings
 from app.core.database import get_db
-from app.db.models import Site
+from app.db.models import Site, APIKey
 
 
 # Security scheme
@@ -43,35 +44,105 @@ def decode_access_token(token: str) -> dict:
         raise AuthError("Invalid authentication credentials")
 
 
+def hash_api_key(api_key: str) -> str:
+    """Hash API key using SHA-256"""
+    return hashlib.sha256(api_key.encode()).hexdigest()
+
+
+async def verify_api_key(api_key: str, db: AsyncSession) -> Optional[dict]:
+    """
+    Verify API key and return associated site info.
+
+    Args:
+        api_key: The API key to verify
+        db: Database session
+
+    Returns:
+        dict with site_id and scopes if valid, None otherwise
+    """
+    key_hash = hash_api_key(api_key)
+
+    # Query for API key
+    result = await db.execute(
+        select(APIKey).where(
+            APIKey.key_hash == key_hash,
+            APIKey.is_active == True,
+        )
+    )
+    api_key_obj = result.scalar_one_or_none()
+
+    if not api_key_obj:
+        return None
+
+    # Check expiration
+    if api_key_obj.expires_at and api_key_obj.expires_at < datetime.utcnow():
+        return None
+
+    # Update usage tracking
+    await db.execute(
+        update(APIKey)
+        .where(APIKey.id == api_key_obj.id)
+        .values(
+            last_used_at=datetime.utcnow(),
+            usage_count=APIKey.usage_count + 1
+        )
+    )
+    await db.commit()
+
+    return {
+        "site_id": str(api_key_obj.site_id),
+        "scopes": api_key_obj.scopes,
+        "auth_type": "api_key",
+    }
+
+
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """
-    Get current authenticated user from JWT token.
-    
+    Get current authenticated user from JWT token or API key.
+
+    Supports both JWT tokens and API keys for authentication.
+    API keys are identified by the 'sk-' prefix.
+
     Returns:
-        dict with user_id and account_id from token payload
-        
+        dict with user_id and account_id (for JWT) or site_id and scopes (for API key)
+
     Raises:
-        HTTPException: If token is invalid or missing
+        HTTPException: If token/key is invalid or missing
     """
     try:
         token = credentials.credentials
+
+        # Check if it's an API key (starts with 'sk-')
+        if token.startswith('sk-'):
+            api_key_info = await verify_api_key(token, db)
+            if api_key_info:
+                return api_key_info
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid API key",
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+
+        # Otherwise, treat as JWT token
         payload = decode_access_token(token)
         user_id: Optional[str] = payload.get("sub")
         account_id: Optional[str] = payload.get("account_id")
-        
+
         if user_id is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid authentication credentials",
                 headers={"WWW-Authenticate": "Bearer"},
             )
-        
+
         return {
             "user_id": user_id,
             "account_id": account_id,
+            "auth_type": "jwt",
         }
     except AuthError:
         raise HTTPException(
@@ -79,7 +150,9 @@ async def get_current_user(
             detail="Invalid authentication credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    except Exception:
+    except HTTPException:
+        raise
+    except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",

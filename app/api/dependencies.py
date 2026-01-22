@@ -3,18 +3,18 @@ from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.governance.lifecycle_gates import LifecycleGateManager
-from app.governance.publishing import PublishingSafety
-from app.governance.reverse_silos import ReverseSiloEnforcer
+from app.governance.lifecycle.lifecycle_gates import LifecycleGateManager
+from app.governance.content.publishing import PublishingSafety
+from app.governance.structure.reverse_silos import ReverseSiloEnforcer
 from app.schemas.jsonld import JSONLDGenerator
 from app.decision.preflight_validator import PreflightValidator
 from app.decision.postcheck_validator import PostCheckValidator
-from app.governance.near_duplicate_detector import NearDuplicateDetector
-from app.governance.reservation_system import ReservationSystem
-from app.governance.clusters import ClusterManager
-from app.governance.silo_recommendations import SiloRecommendationEngine
-from app.governance.silo_finalization import SiloFinalizer
-from app.governance.anchor_governance import AnchorGovernor
+from app.governance.content.near_duplicate_detector import NearDuplicateDetector
+from app.governance.sync.reservation_system import ReservationSystem
+from app.governance.structure.clusters import ClusterManager
+from app.governance.structure.silo_recommendations import SiloRecommendationEngine
+from app.governance.structure.silo_finalization import SiloFinalizer
+from app.governance.authority.anchor_governance import AnchorGovernor
 
 
 # Database dependency (already exists, re-export for clarity)

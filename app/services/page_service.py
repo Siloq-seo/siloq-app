@@ -12,8 +12,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.db.models import Page, ContentStatus, GenerationJob, SystemEvent
-from app.governance.lifecycle_gates import LifecycleGateManager
-from app.governance.publishing import PublishingSafety
+from app.governance.lifecycle.lifecycle_gates import LifecycleGateManager
+from app.governance.content.publishing import PublishingSafety
 from app.exceptions import LifecycleGateError, PublishingError, DecommissionError
 from app.decision.error_codes import ErrorCodeDictionary
 from app.types import AllGatesResult, AuthorityPreservationResult

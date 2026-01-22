@@ -55,7 +55,7 @@ class TestPlanEntitlements:
         
         assert empire["white_label_ui"] is True
         assert empire["agency_command_center"] is True
-        assert empire["api_access"] is True
+        assert empire["api_priority_queue"] is True
         assert empire["max_projects"] == 20
         assert empire["max_concurrent_jobs"] == 20
 

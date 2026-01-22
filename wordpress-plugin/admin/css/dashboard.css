@@ -1,0 +1,355 @@
+/**
+ * Siloq Dashboard CSS
+ * Styles for the sync dashboard
+ */
+
+/* Dashboard Container */
+.siloq-dashboard {
+    margin: 20px 0;
+}
+
+/* Stats Grid */
+.siloq-dashboard-stats {
+    margin: 20px 0 30px;
+}
+
+.siloq-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+.siloq-stat-card {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 20px;
+    display: flex;
+    align-items: center;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.siloq-stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 3px 8px rgba(0,0,0,0.15);
+}
+
+.siloq-stat-icon {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background: #0073aa;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 15px;
+    flex-shrink: 0;
+}
+
+.siloq-stat-icon .dashicons {
+    color: #fff;
+    font-size: 24px;
+    width: 24px;
+    height: 24px;
+}
+
+.siloq-stat-content h3 {
+    margin: 0 0 5px;
+    font-size: 32px;
+    font-weight: 600;
+    line-height: 1;
+    color: #23282d;
+}
+
+.siloq-stat-content p {
+    margin: 0;
+    color: #646970;
+    font-size: 14px;
+}
+
+/* Tab Content */
+.siloq-tab-content {
+    background: #fff;
+    border: 1px solid #ccd0d4;
+    border-top: none;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+/* Status Badges */
+.siloq-status-badge {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 3px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.siloq-status-pending {
+    background: #f0b849;
+    color: #fff;
+}
+
+.siloq-status-processing {
+    background: #00a0d2;
+    color: #fff;
+}
+
+.siloq-status-completed,
+.siloq-status-success {
+    background: #46b450;
+    color: #fff;
+}
+
+.siloq-status-failed,
+.siloq-status-error {
+    background: #dc3232;
+    color: #fff;
+}
+
+/* Processing Highlight Animation */
+.siloq-processing-highlight {
+    background: #fffbcc !important;
+    transition: background 0.3s;
+}
+
+/* Table Styles */
+.siloq-dashboard table.wp-list-table {
+    margin-top: 15px;
+}
+
+.siloq-dashboard table.wp-list-table th {
+    font-weight: 600;
+}
+
+.siloq-dashboard table.wp-list-table td {
+    vertical-align: middle;
+}
+
+.siloq-dashboard table.wp-list-table a {
+    text-decoration: none;
+}
+
+.siloq-dashboard table.wp-list-table a:hover {
+    text-decoration: underline;
+}
+
+/* Manual Actions */
+.siloq-manual-actions {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 20px;
+}
+
+.siloq-manual-actions h2 {
+    margin-top: 0;
+}
+
+.siloq-manual-actions .button {
+    margin-right: 10px;
+    margin-bottom: 10px;
+}
+
+/* Gate Results in Dashboard */
+.siloq-gate-results {
+    background: #f9f9f9;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 15px;
+    margin: 15px 0;
+}
+
+.siloq-gate-summary {
+    display: flex;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.siloq-gate-summary .dashicons {
+    margin-right: 8px;
+    font-size: 24px;
+}
+
+.siloq-gates-table {
+    width: 100%;
+}
+
+.siloq-gates-table th,
+.siloq-gates-table td {
+    padding: 8px;
+}
+
+/* Responsive Design */
+@media screen and (max-width: 782px) {
+    .siloq-stats-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .siloq-stat-card {
+        padding: 15px;
+    }
+
+    .siloq-stat-content h3 {
+        font-size: 24px;
+    }
+
+    .siloq-manual-actions .button {
+        display: block;
+        width: 100%;
+        margin-right: 0;
+        text-align: center;
+    }
+}
+
+/* Loading Spinner */
+.siloq-loading {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid #f3f3f3;
+    border-top: 2px solid #0073aa;
+    border-radius: 50%;
+    animation: siloq-spin 1s linear infinite;
+    margin-left: 8px;
+}
+
+@keyframes siloq-spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Empty State */
+.siloq-empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    color: #646970;
+}
+
+.siloq-empty-state .dashicons {
+    font-size: 64px;
+    width: 64px;
+    height: 64px;
+    opacity: 0.3;
+    margin-bottom: 15px;
+}
+
+.siloq-empty-state h3 {
+    margin: 0 0 10px;
+    color: #23282d;
+}
+
+.siloq-empty-state p {
+    margin: 0;
+}
+
+/* Notice Styles within Dashboard */
+.siloq-dashboard .notice {
+    margin: 15px 0;
+}
+
+.siloq-dashboard .notice.inline {
+    display: block;
+    margin: 10px 0;
+    padding: 10px 15px;
+}
+
+/* Button States */
+.button.siloq-sync-now-btn:disabled,
+.button.siloq-check-gates-btn:disabled,
+.button.siloq-retry-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Tooltip */
+.siloq-tooltip {
+    position: relative;
+    display: inline-block;
+}
+
+.siloq-tooltip .siloq-tooltiptext {
+    visibility: hidden;
+    width: 200px;
+    background-color: #23282d;
+    color: #fff;
+    text-align: center;
+    border-radius: 4px;
+    padding: 8px;
+    position: absolute;
+    z-index: 1;
+    bottom: 125%;
+    left: 50%;
+    margin-left: -100px;
+    opacity: 0;
+    transition: opacity 0.3s;
+    font-size: 12px;
+}
+
+.siloq-tooltip:hover .siloq-tooltiptext {
+    visibility: visible;
+    opacity: 1;
+}
+
+/* Success/Error Messages */
+.siloq-message-success {
+    color: #46b450;
+    font-weight: 600;
+}
+
+.siloq-message-error {
+    color: #dc3232;
+    font-weight: 600;
+}
+
+/* Progress Bar (if used in dashboard) */
+.siloq-progress-bar {
+    width: 100%;
+    height: 20px;
+    background: #e0e0e0;
+    border-radius: 10px;
+    overflow: hidden;
+    margin: 10px 0;
+}
+
+.siloq-progress-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #0073aa 0%, #00a0d2 100%);
+    transition: width 0.5s ease;
+    border-radius: 10px;
+}
+
+/* Card Hover Effects */
+.siloq-stat-card:hover .siloq-stat-icon {
+    transform: scale(1.1);
+    transition: transform 0.2s;
+}
+
+/* Dark Mode Support (WordPress 5.7+) */
+@media (prefers-color-scheme: dark) {
+    .siloq-stat-card {
+        background: #1d2327;
+        border-color: #3c434a;
+    }
+
+    .siloq-stat-content h3 {
+        color: #f0f0f1;
+    }
+
+    .siloq-stat-content p {
+        color: #c3c4c7;
+    }
+
+    .siloq-tab-content {
+        background: #1d2327;
+        border-color: #3c434a;
+    }
+
+    .siloq-manual-actions {
+        background: #1d2327;
+        border-color: #3c434a;
+    }
+}

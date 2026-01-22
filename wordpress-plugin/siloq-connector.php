@@ -3,7 +3,7 @@
  * Plugin Name: Siloq Connector
  * Plugin URI: https://siloq.io
  * Description: Connects WordPress to Siloq SEO platform for automated content governance and optimization.
- * Version: 1.0.0
+ * Version: 2.0.0
  * Author: Siloq
  * Author URI: https://siloq.io
  * License: GPL v2 or later
@@ -20,7 +20,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('SILOQ_VERSION', '1.0.0');
+define('SILOQ_VERSION', '2.0.0');
 define('SILOQ_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('SILOQ_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('SILOQ_PLUGIN_BASENAME', plugin_basename(__FILE__));
@@ -64,8 +64,10 @@ class Siloq_Connector {
      * Constructor
      */
     private function __construct() {
-        $this->init_hooks();
+        // Load all PHP class dependencies before registering hooks that
+        // rely on them (for example, TALI access control and cron managers).
         $this->load_dependencies();
+        $this->init_hooks();
     }
     
     /**
@@ -111,6 +113,100 @@ class Siloq_Connector {
         // Add admin menu for TALI
         if (is_admin()) {
             add_action('admin_menu', array($this, 'add_tali_admin_menu'));
+            add_action('admin_notices', array($this, 'display_admin_notices'));
+        }
+
+        // Register cron schedules
+        add_filter('cron_schedules', array($this, 'add_cron_schedules'));
+
+        // Register cron hooks
+        add_action('siloq_process_queue', array($this, 'cron_process_queue'));
+        add_action('siloq_pull_updates', array($this, 'cron_pull_updates'));
+        add_action('siloq_clear_locks', array($this, 'cron_clear_locks'));
+        add_action('siloq_cleanup_logs', array($this, 'cron_cleanup_logs'));
+    }
+
+    /**
+     * Add custom cron schedules
+     */
+    public function add_cron_schedules($schedules) {
+        require_once SILOQ_PLUGIN_DIR . 'includes/class-siloq-cron-manager.php';
+        $cron_manager = new Siloq_Cron_Manager();
+        return $cron_manager->add_cron_schedules($schedules);
+    }
+
+    /**
+     * Cron: Process sync queue
+     */
+    public function cron_process_queue() {
+        require_once SILOQ_PLUGIN_DIR . 'includes/class-siloq-cron-manager.php';
+        $cron_manager = new Siloq_Cron_Manager();
+        $cron_manager->process_sync_queue();
+    }
+
+    /**
+     * Cron: Pull updates from Siloq
+     */
+    public function cron_pull_updates() {
+        require_once SILOQ_PLUGIN_DIR . 'includes/class-siloq-cron-manager.php';
+        $cron_manager = new Siloq_Cron_Manager();
+        $cron_manager->pull_updates_from_siloq();
+    }
+
+    /**
+     * Cron: Clear expired locks
+     */
+    public function cron_clear_locks() {
+        require_once SILOQ_PLUGIN_DIR . 'includes/class-siloq-cron-manager.php';
+        $cron_manager = new Siloq_Cron_Manager();
+        $cron_manager->clear_expired_locks();
+    }
+
+    /**
+     * Cron: Cleanup old logs
+     */
+    public function cron_cleanup_logs() {
+        require_once SILOQ_PLUGIN_DIR . 'includes/class-siloq-cron-manager.php';
+        $cron_manager = new Siloq_Cron_Manager();
+        $cron_manager->cleanup_old_logs();
+    }
+
+    /**
+     * Display admin notices
+     */
+    public function display_admin_notices() {
+        // Check for migration failure
+        $migration_failed = get_option('siloq_migration_failed');
+        if ($migration_failed) {
+            ?>
+            <div class="notice notice-error is-dismissible">
+                <p>
+                    <strong><?php _e('Siloq Connector:', 'siloq-connector'); ?></strong>
+                    <?php _e('Database migration failed. Please contact support.', 'siloq-connector'); ?>
+                </p>
+                <p><code><?php echo esc_html($migration_failed['error']); ?></code></p>
+            </div>
+            <?php
+        }
+
+        // Check if migration is needed
+        require_once SILOQ_PLUGIN_DIR . 'includes/class-siloq-schema-migration.php';
+        $migration = new Siloq_Schema_Migration();
+        $status = $migration->get_migration_status();
+
+        if ($status['needs_migration']) {
+            ?>
+            <div class="notice notice-warning">
+                <p>
+                    <strong><?php _e('Siloq Connector:', 'siloq-connector'); ?></strong>
+                    <?php printf(
+                        __('Database migration required (v%s → v%s). Please deactivate and reactivate the plugin.', 'siloq-connector'),
+                        esc_html($status['current_version']),
+                        esc_html($status['target_version'])
+                    ); ?>
+                </p>
+            </div>
+            <?php
         }
     }
     
@@ -219,18 +315,27 @@ class Siloq_Connector {
      * Load plugin dependencies
      */
     private function load_dependencies() {
+        // Core classes
         require_once SILOQ_PLUGIN_DIR . 'includes/class-siloq-api-client.php';
         require_once SILOQ_PLUGIN_DIR . 'includes/class-siloq-sync-engine.php';
         require_once SILOQ_PLUGIN_DIR . 'includes/class-siloq-redirect-manager.php';
         require_once SILOQ_PLUGIN_DIR . 'includes/class-siloq-schema-injector.php';
-        
+
+        // New v2.0 classes
+        require_once SILOQ_PLUGIN_DIR . 'includes/class-siloq-schema-migration.php';
+        require_once SILOQ_PLUGIN_DIR . 'includes/class-siloq-error-handler.php';
+        require_once SILOQ_PLUGIN_DIR . 'includes/class-siloq-api-key-manager.php';
+        require_once SILOQ_PLUGIN_DIR . 'includes/class-siloq-sync-queue.php';
+        require_once SILOQ_PLUGIN_DIR . 'includes/class-siloq-content-lock.php';
+        require_once SILOQ_PLUGIN_DIR . 'includes/class-siloq-cron-manager.php';
+
         // TALI components
         require_once SILOQ_PLUGIN_DIR . 'includes/class-siloq-tali-fingerprinter.php';
         require_once SILOQ_PLUGIN_DIR . 'includes/class-siloq-tali-component-discovery.php';
         require_once SILOQ_PLUGIN_DIR . 'includes/class-siloq-tali-block-injector.php';
         require_once SILOQ_PLUGIN_DIR . 'includes/class-siloq-tali-access-control.php';
         require_once SILOQ_PLUGIN_DIR . 'includes/class-siloq-tali-confidence-gate.php';
-        
+
         $this->api_client = new Siloq_API_Client();
         $this->sync_engine = new Siloq_Sync_Engine($this->api_client);
         $this->redirect_manager = new Siloq_Redirect_Manager();
@@ -240,35 +345,66 @@ class Siloq_Connector {
      * Plugin activation
      */
     public function activate() {
-        // Create database tables
+        // Run database migration
+        require_once SILOQ_PLUGIN_DIR . 'includes/class-siloq-schema-migration.php';
+        $migration = new Siloq_Schema_Migration();
+
+        // Create v1.0 tables first
         $this->create_tables();
-        
+
+        // Run migration to v2.0.0
+        $result = $migration->migrate();
+
+        if (is_wp_error($result)) {
+            // Log error but don't fail activation
+            error_log('Siloq schema migration failed: ' . $result->get_error_message());
+
+            // Store migration status for admin notice
+            update_option('siloq_migration_failed', array(
+                'error' => $result->get_error_message(),
+                'time' => current_time('mysql'),
+            ));
+        } else {
+            // Clear any previous migration errors
+            delete_option('siloq_migration_failed');
+        }
+
         // Set default options
         if (!get_option('siloq_api_base_url')) {
             update_option('siloq_api_base_url', 'https://api.siloq.io/v1');
         }
-        
+
         // Run TALI fingerprint on activation
         if ($this->api_client && $this->api_client->is_configured()) {
             $tali_fingerprinter = new Siloq_TALI_Fingerprinter($this->api_client);
             $tali_fingerprinter->fingerprint_theme();
-            
+
             // Also discover component capabilities
             $tali_discovery = new Siloq_TALI_Component_Discovery();
             $tali_discovery->discover_capabilities();
         }
-        
+
+        // Schedule cron jobs
+        require_once SILOQ_PLUGIN_DIR . 'includes/class-siloq-cron-manager.php';
+        $cron_manager = new Siloq_Cron_Manager();
+        $cron_manager->schedule_jobs();
+
         // Flush rewrite rules for webhooks
         flush_rewrite_rules();
     }
-    
+
     /**
      * Plugin deactivation
      */
     public function deactivate() {
         // Clear scheduled events
+        require_once SILOQ_PLUGIN_DIR . 'includes/class-siloq-cron-manager.php';
+        $cron_manager = new Siloq_Cron_Manager();
+        $cron_manager->unschedule_jobs();
+
+        // Legacy cleanup
         wp_clear_scheduled_hook('siloq_sync_to_platform');
-        
+
         // Flush rewrite rules
         flush_rewrite_rules();
     }

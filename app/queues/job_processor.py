@@ -10,10 +10,10 @@ from openai import AsyncOpenAI
 from app.core.database import AsyncSessionLocal
 from app.core.config import settings
 from app.db.models import Page, GenerationJob, ContentStatus
-from app.governance.ai_output import AIOutputGovernor
-from app.governance.publishing import PublishingSafety
-from app.governance.structured_output import StructuredOutputGenerator, StructuredContent
-from app.governance.cost_calculator import CostCalculator
+from app.governance.ai.ai_output import AIOutputGovernor
+from app.governance.content.publishing import PublishingSafety
+from app.governance.ai.structured_output import StructuredOutputGenerator, StructuredContent
+from app.governance.ai.cost_calculator import CostCalculator
 from app.schemas.jsonld import JSONLDGenerator
 from app.decision.postcheck_validator import PostCheckValidator
 from app.decision.error_codes import ErrorCodeDictionary

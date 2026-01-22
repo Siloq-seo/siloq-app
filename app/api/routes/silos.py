@@ -7,7 +7,7 @@ from app.core.database import get_db
 from app.db.models import Site
 from app.api.dependencies import get_silo_enforcer
 from app.schemas.sites import SiloCreate, SiloResponse
-from app.governance.silo_batch_publishing import SiloBatchPublisher
+from app.governance.structure.silo_batch_publishing import SiloBatchPublisher
 
 router = APIRouter(prefix="/sites/{site_id}/silos", tags=["silos"])
 

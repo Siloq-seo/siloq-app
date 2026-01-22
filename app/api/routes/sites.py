@@ -26,10 +26,9 @@ async def create_site(
         
     Returns:
         Created site with ID
-        
-    Raises:
-        HTTPException: If validation fails
     """
+    # In a future enhancement, we will associate sites with the authenticated
+    # account/organization to enforce ownership at the data model level.
     site = Site(name=site_data.name, domain=site_data.domain)
     db.add(site)
     await db.commit()
@@ -53,12 +52,7 @@ async def get_site(
         
     Returns:
         Site data
-        
-    Raises:
-        HTTPException: 404 if site not found
     """
-    site = await db.get(Site, site_id)
-    if not site:
-        raise HTTPException(status_code=404, detail="Site not found")
+    # Site existence and tenant access are enforced by verify_site_access
     return site
 

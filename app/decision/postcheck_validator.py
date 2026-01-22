@@ -10,9 +10,9 @@ from sqlalchemy import select
 from app.decision.error_codes import ErrorCode, ErrorCodeDictionary
 from app.decision.schemas import ValidationResult
 from app.db.models import Page, Site
-from app.governance.near_duplicate_detector import NearDuplicateDetector, DetectionResult
-from app.governance.geo_exceptions import GeoException
-from app.governance.cannibalization import CannibalizationDetector
+from app.governance.content.near_duplicate_detector import NearDuplicateDetector, DetectionResult
+from app.governance.utils.geo_exceptions import GeoException
+from app.governance.content.cannibalization import CannibalizationDetector
 from app.core.config import settings
 
 

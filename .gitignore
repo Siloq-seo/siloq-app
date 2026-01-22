@@ -201,6 +201,20 @@ cython_debug/
 .cursorignore
 .cursorindexingignore
 
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Node.js (if any leftover files)
+package-lock.json
+node_modules/
+
+# Log files
+*.log
+server.log
+test_baseline.log
+
 # Marimo
 marimo/_static/
 marimo/_lsp/
