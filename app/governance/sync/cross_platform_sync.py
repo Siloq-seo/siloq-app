@@ -5,14 +5,12 @@ Discovery is moving to TikTok, Reddit, and AI assistants (Perplexity, ChatGPT).
 This module provides the foundation for ensuring brand's "Silo" is recognized
 not just on the site, but across forums and social platforms to build "AI Authority".
 """
-from typing import Dict, List, Optional, Any
+from typing import Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from uuid import UUID
 
-from app.db.models import Page, Site, Silo
 
-
-class CrossPlatformEntitySync:
+class CrossPlatformSync:
     """
     Foundation for cross-platform entity synchronization.
     
@@ -120,4 +118,7 @@ class CrossPlatformEntitySync:
             )
         
         return authorities
+
+
+__all__ = ["CrossPlatformSync"]
 
