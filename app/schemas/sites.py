@@ -1,5 +1,5 @@
 """Pydantic schemas for Site-related requests and responses"""
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator, model_validator, ConfigDict
 from typing import List, Optional, Dict, Any
 from uuid import UUID
 from app.db.models import SiteType
@@ -19,7 +19,8 @@ class SiteCreate(BaseModel):
     product_sku_pattern: Optional[str] = Field(None, description="Product SKU pattern for ECOMMERCE: e.g., 'PROD-{category}-{id}'")
     currency_settings: Optional[Dict[str, Any]] = Field(None, description="Currency settings for ECOMMERCE: {'default': 'USD', 'supported': [...]}")
     
-    @validator('domain')
+    @field_validator('domain')
+    @classmethod
     def validate_domain(cls, v: str) -> str:
         """Validate domain format"""
         v = v.strip().lower()
@@ -30,51 +31,30 @@ class SiteCreate(BaseModel):
             raise ValueError('Domain cannot contain spaces')
         return v
     
-    @validator('geo_coordinates')
-    def validate_geo_coordinates(cls, v, values):
-        """Validate geo_coordinates if site_type is LOCAL_SERVICE"""
-        site_type = values.get('site_type')
-        if site_type == SiteType.LOCAL_SERVICE:
-            if not v:
+    @model_validator(mode='after')
+    def validate_site_type_requirements(self):
+        """Validate required fields based on site_type"""
+        if self.site_type == SiteType.LOCAL_SERVICE:
+            if not self.geo_coordinates:
                 raise ValueError('geo_coordinates is required for LOCAL_SERVICE sites')
-            if not isinstance(v, dict):
+            if not isinstance(self.geo_coordinates, dict):
                 raise ValueError('geo_coordinates must be a dictionary')
-            if 'lat' not in v or 'lng' not in v:
+            if 'lat' not in self.geo_coordinates or 'lng' not in self.geo_coordinates:
                 raise ValueError('geo_coordinates must contain lat and lng keys')
-        return v
-    
-    @validator('service_area')
-    def validate_service_area(cls, v, values):
-        """Validate service_area if site_type is LOCAL_SERVICE"""
-        site_type = values.get('site_type')
-        if site_type == SiteType.LOCAL_SERVICE:
-            if not v:
+            if not self.service_area:
                 raise ValueError('service_area is required for LOCAL_SERVICE sites')
-            if not isinstance(v, list) or len(v) == 0:
+            if not isinstance(self.service_area, list) or len(self.service_area) == 0:
                 raise ValueError('service_area must be a non-empty list')
-        return v
-    
-    @validator('product_sku_pattern')
-    def validate_product_sku_pattern(cls, v, values):
-        """Validate product_sku_pattern if site_type is ECOMMERCE"""
-        site_type = values.get('site_type')
-        if site_type == SiteType.ECOMMERCE:
-            if not v:
+        elif self.site_type == SiteType.ECOMMERCE:
+            if not self.product_sku_pattern:
                 raise ValueError('product_sku_pattern is required for ECOMMERCE sites')
-        return v
-    
-    @validator('currency_settings')
-    def validate_currency_settings(cls, v, values):
-        """Validate currency_settings if site_type is ECOMMERCE"""
-        site_type = values.get('site_type')
-        if site_type == SiteType.ECOMMERCE:
-            if not v:
+            if not self.currency_settings:
                 raise ValueError('currency_settings is required for ECOMMERCE sites')
-            if not isinstance(v, dict):
+            if not isinstance(self.currency_settings, dict):
                 raise ValueError('currency_settings must be a dictionary')
-            if 'default' not in v:
+            if 'default' not in self.currency_settings:
                 raise ValueError('currency_settings must contain default key')
-        return v
+        return self
 
 
 class SiteResponse(BaseModel):
@@ -88,8 +68,7 @@ class SiteResponse(BaseModel):
     product_sku_pattern: Optional[str] = None
     currency_settings: Optional[Dict[str, Any]] = None
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SiloCreate(BaseModel):
@@ -97,7 +76,8 @@ class SiloCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=200, description="Silo name")
     slug: str = Field(..., min_length=1, max_length=100, description="Silo slug (URL-friendly)")
     
-    @validator('slug')
+    @field_validator('slug')
+    @classmethod
     def validate_slug(cls, v: str) -> str:
         """Validate slug format"""
         v = v.strip().lower()
@@ -114,6 +94,5 @@ class SiloResponse(BaseModel):
     site_id: UUID
     position: Optional[int] = None
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 

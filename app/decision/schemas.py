@@ -2,7 +2,7 @@
 from typing import Dict, List, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 
 
 # Constants
@@ -36,7 +36,8 @@ class ValidationPayload(BaseModel):
     is_proposal: bool = False
     metadata: Optional[Dict] = None
     
-    @validator("path")
+    @field_validator("path")
+    @classmethod
     def validate_path_format(cls, v: str) -> str:
         """
         Validate path format.
@@ -54,7 +55,8 @@ class ValidationPayload(BaseModel):
             raise ValueError("Path cannot end with '/' (except root)")
         return v
     
-    @validator("title")
+    @field_validator("title")
+    @classmethod
     def validate_title_length(cls, v: str) -> str:
         """Validate title length (minimum 10 characters after trimming)."""
         trimmed = v.strip()
@@ -64,10 +66,8 @@ class ValidationPayload(BaseModel):
             )
         return trimmed
     
-    class Config:
-        """Pydantic configuration."""
-        
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "page_id": "123e4567-e89b-12d3-a456-426614174000",
                 "site_id": "123e4567-e89b-12d3-a456-426614174001",
@@ -78,6 +78,7 @@ class ValidationPayload(BaseModel):
                 "is_proposal": False,
             }
         }
+    )
 
 
 class ErrorResponse(BaseModel):
@@ -115,10 +116,8 @@ class ValidationResult(BaseModel):
     warnings: List[Dict[str, str]] = Field(default_factory=list)
     state: Optional[str] = None
     
-    class Config:
-        """Pydantic configuration."""
-        
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "passed": False,
                 "errors": [
@@ -137,6 +136,7 @@ class ValidationResult(BaseModel):
                 "state": "draft",
             }
         }
+    )
 
 
 class StateTransitionRequest(BaseModel):
@@ -153,16 +153,15 @@ class StateTransitionRequest(BaseModel):
     reason: Optional[str] = None
     error_code: Optional[str] = None
     
-    class Config:
-        """Pydantic configuration."""
-        
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "target_state": "preflight_approved",
                 "reason": "Validation passed",
                 "error_code": None,
             }
         }
+    )
 
 
 class StateTransitionResponse(BaseModel):
@@ -183,10 +182,8 @@ class StateTransitionResponse(BaseModel):
     error: Optional[ErrorResponse] = None
     allowed_transitions: List[str] = Field(default_factory=list)
     
-    class Config:
-        """Pydantic configuration."""
-        
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "success": True,
                 "current_state": "preflight_approved",
@@ -195,3 +192,4 @@ class StateTransitionResponse(BaseModel):
                 "allowed_transitions": ["prompt_locked", "failed"],
             }
         }
+    )

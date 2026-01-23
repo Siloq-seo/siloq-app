@@ -6,7 +6,7 @@ Forces users to provide data required by Week 5 and Week 3 code.
 """
 from typing import List, Optional
 from enum import Enum
-from pydantic import BaseModel, Field, validator, root_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class ContentScope(str, Enum):
@@ -48,7 +48,8 @@ class SiloArchitectureInput(BaseModel):
         description="5 Specific Customer Problems/Questions (Supporting Blogs)"
     )
     
-    @validator("primary_service_to_rank")
+    @field_validator("primary_service_to_rank")
+    @classmethod
     def validate_primary_service(cls, v):
         """Block generic one-word answers."""
         v = v.strip()
@@ -63,7 +64,8 @@ class SiloArchitectureInput(BaseModel):
         
         return v
     
-    @validator("customer_problems_questions")
+    @field_validator("customer_problems_questions")
+    @classmethod
     def validate_customer_problems(cls, v):
         """Ensure problems/questions are specific."""
         if len(v) != 5:
@@ -101,33 +103,29 @@ class EntityInjectionInput(BaseModel):
         description="List 1 local law or regional term (required if scope=local)"
     )
     
-    @root_validator(skip_on_failure=True)
-    def validate_scope_requirements(cls, values):
+    @model_validator(mode='after')
+    def validate_scope_requirements(self):
         """Validate requirements based on scope."""
-        scope = values.get("scope")
-        landmarks = values.get("local_landmarks_neighborhoods", [])
-        law_term = values.get("local_law_regional_term", "")
-        
-        if scope == ContentScope.LOCAL:
+        if self.scope == ContentScope.LOCAL:
             # Local scope requires landmarks and regional term
-            if not landmarks or len(landmarks) < 3:
+            if not self.local_landmarks_neighborhoods or len(self.local_landmarks_neighborhoods) < 3:
                 raise ValueError("Local scope requires 3 local landmarks/neighborhoods")
-            if not law_term or not law_term.strip():
+            if not self.local_law_regional_term or not self.local_law_regional_term.strip():
                 raise ValueError("Local scope requires 1 local law or regional term")
             
             # Validate landmark quality
-            for i, landmark in enumerate(landmarks, 1):
+            for i, landmark in enumerate(self.local_landmarks_neighborhoods, 1):
                 landmark = landmark.strip()
                 if not landmark or len(landmark) < 5:
                     raise ValueError(f"Landmark/Neighborhood {i} is too short. Must be specific (e.g., 'Pike Place Market' not 'Market')")
-        elif scope == ContentScope.NATIONAL:
+        elif self.scope == ContentScope.NATIONAL:
             # National scope should not have local landmarks
-            if landmarks:
+            if self.local_landmarks_neighborhoods:
                 raise ValueError("National scope cannot have local landmarks. Remove landmarks for national content.")
-            if law_term:
+            if self.local_law_regional_term:
                 raise ValueError("National scope cannot have local law/regional term. Remove for national content.")
         
-        return values
+        return self
 
 
 class RiskAssessmentInput(BaseModel):
@@ -137,7 +135,8 @@ class RiskAssessmentInput(BaseModel):
         description="Is the site <1 year old or >1 year old?"
     )
     
-    @validator("site_age_category")
+    @field_validator("site_age_category")
+    @classmethod
     def validate_site_age(cls, v):
         """Validate site age category."""
         v_lower = v.lower().strip()
@@ -160,21 +159,19 @@ class OnboardingQuestionnaire(BaseModel):
     risk_assessment: RiskAssessmentInput = Field(..., description="D. THE WHEN (Risk Assessment)")
     site_id: Optional[str] = Field(None, description="Optional site ID if updating existing site")
     
-    @root_validator(skip_on_failure=True)
-    def validate_scope_consistency(cls, values):
+    @model_validator(mode='after')
+    def validate_scope_consistency(self):
         """Validate scope consistency across questionnaire."""
-        entity_injection = values.get("entity_injection")
-        
-        if entity_injection and entity_injection.scope == ContentScope.LOCAL:
+        if self.entity_injection and self.entity_injection.scope == ContentScope.LOCAL:
             # Local scope: Show warning if local details missing
-            landmarks = entity_injection.local_landmarks_neighborhoods
-            law_term = entity_injection.local_law_regional_term
+            landmarks = self.entity_injection.local_landmarks_neighborhoods
+            law_term = self.entity_injection.local_law_regional_term
             
             if not landmarks or len(landmarks) < 3 or not law_term or not law_term.strip():
                 # This will be handled in the API to show warning
                 pass
         
-        return values
+        return self
 
 
 class OnboardingQuestionnaireResponse(BaseModel):

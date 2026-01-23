@@ -11,7 +11,8 @@ class ScanRequest(BaseModel):
     scan_type: str = Field(default='full', description="Scan type: 'full', 'quick', or 'technical'")
     site_id: Optional[UUID] = Field(None, description="Optional: Link scan to existing site")
     
-    @validator('scan_type')
+    @field_validator('scan_type')
+    @classmethod
     def validate_scan_type(cls, v):
         if v not in ['full', 'quick', 'technical']:
             raise ValueError("scan_type must be 'full', 'quick', or 'technical'")
@@ -58,8 +59,7 @@ class ScanResponse(BaseModel):
     created_at: datetime
     completed_at: Optional[datetime]
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ScanSummary(BaseModel):
@@ -73,5 +73,4 @@ class ScanSummary(BaseModel):
     created_at: datetime
     completed_at: Optional[datetime]
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

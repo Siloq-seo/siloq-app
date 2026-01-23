@@ -1,5 +1,5 @@
 """Pydantic schemas for Page-related requests and responses"""
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 from typing import Optional, Dict, Any, List
 from uuid import UUID
 from datetime import datetime
@@ -16,7 +16,8 @@ class PageCreate(BaseModel):
     prompt: str = Field(..., min_length=50, description="Content generation prompt (min 50 characters)")
     metadata: Optional[Dict[str, Any]] = Field(None, description="Optional metadata")
     
-    @validator('path')
+    @field_validator('path')
+    @classmethod
     def validate_path(cls, v: str) -> str:
         """Validate that path starts with /"""
         if not v.startswith('/'):
@@ -36,8 +37,7 @@ class PageResponse(BaseModel):
     updated_at: Optional[datetime] = None
     published_at: Optional[datetime] = None
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PageUpdate(BaseModel):
@@ -47,7 +47,8 @@ class PageUpdate(BaseModel):
     body: Optional[str] = None
     status: Optional[ContentStatus] = None
     
-    @validator('path')
+    @field_validator('path')
+    @classmethod
     def validate_path(cls, v: Optional[str]) -> Optional[str]:
         """Validate that path starts with / if provided"""
         if v is not None and not v.startswith('/'):
@@ -64,7 +65,8 @@ class DecommissionRequest(BaseModel):
     """Request model for decommissioning a page"""
     redirect_to: Optional[str] = Field(None, description="Redirect URL (internal path or external URL)")
     
-    @validator('redirect_to')
+    @field_validator('redirect_to')
+    @classmethod
     def validate_redirect(cls, v: Optional[str]) -> Optional[str]:
         """Validate redirect URL format"""
         if v is None:
