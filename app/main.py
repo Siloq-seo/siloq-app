@@ -9,7 +9,7 @@ from app.core.config import settings
 from app.core.database import engine, Base
 from app.core.redis import redis_client
 from app.core.rate_limit import RateLimitMiddleware
-from app.api.routes import sites_router, pages_router, jobs_router, silos_router, onboarding_router, api_keys_router, scans_router
+from app.api.routes import auth_router, sites_router, pages_router, jobs_router, silos_router, onboarding_router, api_keys_router, scans_router
 from app.api.routes.wordpress import router as wordpress_router
 from app.queues.queue_manager import queue_manager
 from app.api.exception_handlers import (
@@ -64,15 +64,15 @@ def get_cors_origins() -> list:
     if settings.environment == "production":
         # In production, parse from comma-separated list or use specific domains
         origins = []
-        if settings.cors_origins != "*":
-            origins = [origin.strip() for origin in settings.cors_origins.split(",")]
+        if settings.cors_origins and settings.cors_origins != "*":
+            origins = [origin.strip() for origin in settings.cors_origins.split(",") if origin.strip()]
         
         # Always include the DigitalOcean app origin
         required_origin = "https://siloq-app-edwlr.ondigitalocean.app"
         if required_origin not in origins:
             origins.append(required_origin)
         
-        return origins
+        return origins if origins else [required_origin]
     else:
         # Development: allow all origins
         return ["*"]
@@ -114,6 +114,7 @@ app.add_exception_handler(RequestValidationError, validation_exception_handler)
 app.add_exception_handler(IntegrityError, integrity_error_handler)
 
 # Include routers
+app.include_router(auth_router, prefix="/api/v1")
 app.include_router(sites_router, prefix="/api/v1")
 app.include_router(pages_router, prefix="/api/v1")
 app.include_router(jobs_router, prefix="/api/v1")
