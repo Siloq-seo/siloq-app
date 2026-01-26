@@ -68,7 +68,7 @@ def get_cors_origins() -> list:
             origins = [origin.strip() for origin in settings.cors_origins.split(",") if origin.strip()]
         
         # Always include the DigitalOcean app origin
-        required_origin = "https://siloq-app-edwlr.ondigitalocean.app"
+        required_origin = "https://siloq-dashboard-vcoj8.ondigitalocean.app/"
         if required_origin not in origins:
             origins.append(required_origin)
         
