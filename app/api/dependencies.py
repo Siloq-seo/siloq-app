@@ -8,7 +8,7 @@ from app.governance.content.publishing import PublishingSafety
 from app.governance.structure.reverse_silos import ReverseSiloEnforcer
 from app.schemas.jsonld import JSONLDGenerator
 from app.decision.preflight_validator import PreflightValidator
-from app.decision.postcheck_validator import PostCheckValidator
+from app.decision.postcheck_validator import PostcheckValidator
 from app.governance.content.near_duplicate_detector import NearDuplicateDetector
 from app.governance.sync.reservation_system import ReservationSystem
 from app.governance.structure.clusters import ClusterManager
@@ -50,9 +50,9 @@ def get_preflight_validator() -> PreflightValidator:
     return PreflightValidator()
 
 
-def get_postcheck_validator() -> PostCheckValidator:
+def get_postcheck_validator() -> PostcheckValidator:
     """Get postcheck validator instance"""
-    return PostCheckValidator()
+    return PostcheckValidator()
 
 
 # Week 3: Vector Logic Services

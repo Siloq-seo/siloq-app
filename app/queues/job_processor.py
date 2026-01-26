@@ -15,7 +15,7 @@ from app.governance.content.publishing import PublishingSafety
 from app.governance.ai.structured_output import StructuredOutputGenerator, StructuredContent
 from app.governance.ai.cost_calculator import CostCalculator
 from app.schemas.jsonld import JSONLDGenerator
-from app.decision.postcheck_validator import PostCheckValidator
+from app.decision.postcheck_validator import PostcheckValidator
 from app.decision.error_codes import ErrorCodeDictionary
 
 
@@ -31,7 +31,7 @@ class ContentGenerationProcessor:
         self.governor = AIOutputGovernor()
         self.publishing_safety = PublishingSafety()
         self.jsonld_generator = JSONLDGenerator()
-        self.postcheck_validator = PostCheckValidator()
+        self.postcheck_validator = PostcheckValidator()
         self.openai_client = AsyncOpenAI(api_key=settings.openai_api_key)
         self.structured_generator = StructuredOutputGenerator(self.openai_client)
         self.cost_calculator = CostCalculator()

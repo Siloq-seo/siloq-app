@@ -16,7 +16,7 @@ from app.governance.content.cannibalization import CannibalizationDetector
 from app.core.config import settings
 
 
-class PostCheckValidator:
+class PostcheckValidator:
     """
     Validates content after generation with full embedding-based checks.
     
