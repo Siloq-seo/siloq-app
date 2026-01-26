@@ -15,6 +15,7 @@ from app.governance.structure.clusters import ClusterManager
 from app.governance.structure.silo_recommendations import SiloRecommendationEngine
 from app.governance.structure.silo_finalization import SiloFinalizer
 from app.governance.authority.anchor_governance import AnchorGovernor
+from app.core.auth import verify_site_access, verify_page_access
 
 
 # Database dependency (already exists, re-export for clarity)
