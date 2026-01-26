@@ -2,7 +2,7 @@
 from typing import Optional, Dict, Any, List
 from datetime import datetime
 from uuid import UUID
-from pydantic import BaseModel, Field, HttpUrl, validator
+from pydantic import BaseModel, Field, HttpUrl, field_validator, ConfigDict
 
 
 class ScanRequest(BaseModel):

@@ -1,5 +1,5 @@
 """Pydantic schemas for Job-related requests and responses"""
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, Dict, Any
 from uuid import UUID
 from datetime import datetime
