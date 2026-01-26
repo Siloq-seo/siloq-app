@@ -63,10 +63,16 @@ def get_cors_origins() -> list:
     """Get CORS origins based on environment"""
     if settings.environment == "production":
         # In production, parse from comma-separated list or use specific domains
-        if settings.cors_origins == "*":
-            # Default production: no wildcard, require explicit origins
-            return []  # Will be set via environment variable
-        return [origin.strip() for origin in settings.cors_origins.split(",")]
+        origins = []
+        if settings.cors_origins != "*":
+            origins = [origin.strip() for origin in settings.cors_origins.split(",")]
+        
+        # Always include the DigitalOcean app origin
+        required_origin = "https://siloq-app-edwlr.ondigitalocean.app"
+        if required_origin not in origins:
+            origins.append(required_origin)
+        
+        return origins
     else:
         # Development: allow all origins
         return ["*"]
