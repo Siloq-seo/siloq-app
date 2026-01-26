@@ -65,10 +65,11 @@ def get_cors_origins() -> list:
         # In production, parse from comma-separated list or use specific domains
         origins = []
         if settings.cors_origins and settings.cors_origins != "*":
-            origins = [origin.strip() for origin in settings.cors_origins.split(",") if origin.strip()]
+            # Normalize origins: remove trailing slashes
+            origins = [origin.strip().rstrip('/') for origin in settings.cors_origins.split(",") if origin.strip()]
         
-        # Always include the DigitalOcean app origin
-        required_origin = "https://siloq-dashboard-vcoj8.ondigitalocean.app/"
+        # Always include the DigitalOcean dashboard origin (normalized - no trailing slash)
+        required_origin = "https://siloq-dashboard-vcoj8.ondigitalocean.app"
         if required_origin not in origins:
             origins.append(required_origin)
         
@@ -82,14 +83,24 @@ def get_cors_origins() -> list:
 def get_cors_methods() -> list:
     if settings.cors_allow_methods == "*":
         return ["*"]
-    return [method.strip() for method in settings.cors_allow_methods.split(",")]
+    methods = [method.strip().upper() for method in settings.cors_allow_methods.split(",")]
+    # Ensure OPTIONS is always included for preflight requests
+    if "OPTIONS" not in methods:
+        methods.append("OPTIONS")
+    return methods
 
 
 """Get CORS headers based on environment"""
 def get_cors_headers() -> list:
     if settings.cors_allow_headers == "*":
         return ["*"]
-    return [header.strip() for header in settings.cors_allow_headers.split(",")]
+    headers = [header.strip() for header in settings.cors_allow_headers.split(",")]
+    # Ensure common headers are included
+    common_headers = ["Content-Type", "Authorization", "X-API-Key"]
+    for header in common_headers:
+        if header not in headers:
+            headers.append(header)
+    return headers
 
 
 app.add_middleware(
