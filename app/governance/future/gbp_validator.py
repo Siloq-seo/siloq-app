@@ -15,7 +15,7 @@ from app.db.models import Page, SystemEvent
 from app.core.config import settings
 
 
-class GBPSignalValidator:
+class GBPValidator:
     """
     Validates Google Business Profile (GBP) signal alignment.
     
