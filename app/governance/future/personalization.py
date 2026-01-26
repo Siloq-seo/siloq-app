@@ -41,7 +41,7 @@ class WidgetConfigurationType(str, Enum):
     FAQ_ACCORDION = "faq_accordion"
 
 
-class PersonalizationConfiguration:
+class PersonalizationGovernor:
     """
     Configuration-based personalization system.
     
