@@ -36,7 +36,6 @@ from app.exceptions import (
 async def lifespan(app: FastAPI):
     """Application lifespan events"""
     import logging
-    from app.core.migrations import run_all_migrations
     
     logger = logging.getLogger(__name__)
     
@@ -46,32 +45,34 @@ async def lifespan(app: FastAPI):
 
     # Run Alembic migrations automatically (like Django's migrate)
     # This runs on every startup - Alembic tracks which migrations have been applied
-    import subprocess
-    import os
-    
     logger.info("Running Alembic database migrations...")
     try:
-        # Run Alembic upgrade head (applies all pending migrations)
-        result = subprocess.run(
-            ["alembic", "upgrade", "head"],
-            capture_output=True,
-            text=True,
-            timeout=300  # 5 minute timeout
-        )
+        # Use Alembic's programmatic API (more reliable than subprocess)
+        from alembic import command
+        from alembic.config import Config
+        import os
+        from pathlib import Path
         
-        if result.returncode == 0:
-            logger.info("✓ Alembic migrations completed successfully")
-            if result.stdout:
-                logger.info(f"Migration output: {result.stdout}")
+        # Get the project root (where alembic.ini is located)
+        project_root = Path(__file__).parent.parent.parent
+        alembic_ini_path = project_root / "alembic.ini"
+        
+        if not alembic_ini_path.exists():
+            logger.warning(f"alembic.ini not found at {alembic_ini_path}, skipping migrations")
         else:
-            logger.error(f"✗ Alembic migrations failed with return code {result.returncode}")
-            logger.error(f"Error output: {result.stderr}")
-            # Don't fail startup, but log the error
-    except subprocess.TimeoutExpired:
-        logger.error("✗ Alembic migrations timed out after 5 minutes")
+            # Create Alembic config
+            alembic_cfg = Config(str(alembic_ini_path))
+            
+            # Run upgrade head (applies all pending migrations)
+            command.upgrade(alembic_cfg, "head")
+            logger.info("✓ Alembic migrations completed successfully")
+    except ImportError as e:
+        logger.error(f"✗ Alembic not installed: {e}")
+        logger.error("Please ensure 'alembic' is in requirements.txt")
     except Exception as e:
         logger.error(f"✗ Error running Alembic migrations: {e}")
         logger.exception("Full traceback:")
+        # Don't fail startup, but log the error
     
     yield
     
