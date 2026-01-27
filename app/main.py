@@ -50,16 +50,33 @@ async def lifespan(app: FastAPI):
         from alembic import command
         from alembic.config import Config
         from pathlib import Path
+        import os
         
-        project_root = Path(__file__).parent.parent.parent
+        # Get project root - DigitalOcean runs from project root, so use cwd first
+        # Fall back to __file__-based path for local development
+        cwd_root = Path(os.getcwd())
+        file_based_root = Path(__file__).parent.parent.parent
+        
+        # Try current working directory first (production)
+        project_root = cwd_root if (cwd_root / "alembic.ini").exists() else file_based_root
+        
         alembic_ini_path = project_root / "alembic.ini"
         
         if not alembic_ini_path.exists():
-            logger.warning(f"alembic.ini not found at {alembic_ini_path}, skipping migrations")
+            logger.warning(f"alembic.ini not found at {alembic_ini_path}")
+            logger.warning(f"Current working directory: {os.getcwd()}")
+            logger.warning(f"File-based root: {file_based_root}")
+            logger.warning("Skipping migrations")
         else:
             alembic_cfg = Config(str(alembic_ini_path))
-            command.upgrade(alembic_cfg, "head")
-            logger.info("✓ Alembic migrations completed successfully")
+            # Ensure we're in the project root directory for Alembic
+            original_cwd = os.getcwd()
+            try:
+                os.chdir(str(project_root))
+                command.upgrade(alembic_cfg, "head")
+                logger.info("✓ Alembic migrations completed successfully")
+            finally:
+                os.chdir(original_cwd)
             
     except ImportError as e:
         logger.error(f"✗ Alembic not installed: {e}")
