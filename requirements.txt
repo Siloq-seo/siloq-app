@@ -7,6 +7,8 @@ sqlalchemy==2.0.35
 asyncpg==0.29.0  # Use this specific version with pre-built wheels
 psycopg2-binary==2.9.10
 pgvector==0.3.6
+alembic==1.18.1
+
 
 # Pydantic - use compatible versions
 pydantic==2.9.2
@@ -31,6 +33,7 @@ passlib[bcrypt]==1.7.4
 python-dotenv==1.0.1
 python-multipart==0.0.12
 email-validator==2.2.0
+
 
 # Date handling
 python-dateutil==2.9.0
