@@ -47,28 +47,41 @@ async def lifespan(app: FastAPI):
     # This runs on every startup - Alembic tracks which migrations have been applied
     logger.info("Running Alembic database migrations...")
     try:
-        # Use Alembic's programmatic API (more reliable than subprocess)
-        from alembic import command
-        from alembic.config import Config
-        import os
+        # Use subprocess with 'python -m alembic' to avoid local directory shadowing
+        # This ensures we use the installed package, not the local alembic/ directory
+        import subprocess
+        import sys
         from pathlib import Path
         
-        # Get the project root (where alembic.ini is located)
         project_root = Path(__file__).parent.parent.parent
-        alembic_ini_path = project_root / "alembic.ini"
         
-        if not alembic_ini_path.exists():
-            logger.warning(f"alembic.ini not found at {alembic_ini_path}, skipping migrations")
-        else:
-            # Create Alembic config
-            alembic_cfg = Config(str(alembic_ini_path))
-            
-            # Run upgrade head (applies all pending migrations)
-            command.upgrade(alembic_cfg, "head")
+        # Use 'python -m alembic' which properly resolves the installed package
+        # This bypasses the local alembic/ directory shadowing issue
+        result = subprocess.run(
+            [sys.executable, "-m", "alembic", "upgrade", "head"],
+            cwd=str(project_root),
+            capture_output=True,
+            text=True,
+            timeout=300  # 5 minute timeout
+        )
+        
+        if result.returncode == 0:
             logger.info("✓ Alembic migrations completed successfully")
-    except ImportError as e:
-        logger.error(f"✗ Alembic not installed: {e}")
-        logger.error("Please ensure 'alembic' is in requirements.txt")
+            if result.stdout:
+                # Log important migration messages
+                for line in result.stdout.split('\n'):
+                    if line.strip() and ('Running upgrade' in line or 'Running downgrade' in line or 'INFO' in line):
+                        logger.info(f"  {line.strip()}")
+        else:
+            logger.error(f"✗ Alembic migrations failed with return code {result.returncode}")
+            if result.stderr:
+                logger.error(f"Error output: {result.stderr}")
+            if result.stdout:
+                logger.error(f"Output: {result.stdout}")
+    except subprocess.TimeoutExpired:
+        logger.error("✗ Alembic migrations timed out after 5 minutes")
+    except FileNotFoundError:
+        logger.error("✗ Python executable not found. Cannot run Alembic migrations.")
     except Exception as e:
         logger.error(f"✗ Error running Alembic migrations: {e}")
         logger.exception("Full traceback:")
