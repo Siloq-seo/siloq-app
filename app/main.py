@@ -47,41 +47,94 @@ async def lifespan(app: FastAPI):
     # This runs on every startup - Alembic tracks which migrations have been applied
     logger.info("Running Alembic database migrations...")
     try:
-        # Use subprocess with 'python -m alembic' to avoid local directory shadowing
-        # This ensures we use the installed package, not the local alembic/ directory
         import subprocess
+        import shutil
         import sys
         from pathlib import Path
         
         project_root = Path(__file__).parent.parent.parent
         
-        # Use 'python -m alembic' which properly resolves the installed package
-        # This bypasses the local alembic/ directory shadowing issue
-        result = subprocess.run(
-            [sys.executable, "-m", "alembic", "upgrade", "head"],
-            cwd=str(project_root),
-            capture_output=True,
-            text=True,
-            timeout=300  # 5 minute timeout
+        # Method 1: Try using 'alembic' command directly (if in PATH)
+        alembic_cmd = shutil.which("alembic")
+        if alembic_cmd:
+            result = subprocess.run(
+                [alembic_cmd, "upgrade", "head"],
+                cwd=str(project_root),
+                capture_output=True,
+                text=True,
+                timeout=300
+            )
+            
+            if result.returncode == 0:
+                logger.info("✓ Alembic migrations completed successfully")
+                if result.stdout:
+                    for line in result.stdout.split('\n'):
+                        if line.strip() and ('Running upgrade' in line or 'INFO' in line):
+                            logger.info(f"  {line.strip()}")
+                return
+            else:
+                error_msg = result.stderr or result.stdout or "Unknown error"
+                logger.warning(f"Alembic command failed, trying programmatic API: {error_msg}")
+        
+        # Method 2: Use programmatic API (bypasses local directory shadowing)
+        import importlib.util
+        
+        # Find installed alembic package in site-packages
+        alembic_package_path = None
+        for path in sys.path:
+            if not path:
+                continue
+            try:
+                path_obj = Path(path)
+                if not path_obj.exists():
+                    continue
+                
+                alembic_candidate = path_obj / "alembic"
+                if alembic_candidate.exists() and (alembic_candidate / "config.py").exists():
+                    # Verify it's not the local directory
+                    local_alembic = project_root / "alembic"
+                    if not local_alembic.exists() or str(alembic_candidate.resolve()) != str(local_alembic.resolve()):
+                        alembic_package_path = alembic_candidate
+                        break
+            except Exception:
+                continue
+        
+        if not alembic_package_path:
+            raise ImportError(
+                "Could not find installed Alembic package. "
+                "Ensure 'alembic' is installed: pip install alembic"
+            )
+        
+        # Load modules directly from installed package location
+        command_spec = importlib.util.spec_from_file_location(
+            "alembic.command", alembic_package_path / "command.py"
+        )
+        config_spec = importlib.util.spec_from_file_location(
+            "alembic.config", alembic_package_path / "config.py"
         )
         
-        if result.returncode == 0:
-            logger.info("✓ Alembic migrations completed successfully")
-            if result.stdout:
-                # Log important migration messages
-                for line in result.stdout.split('\n'):
-                    if line.strip() and ('Running upgrade' in line or 'Running downgrade' in line or 'INFO' in line):
-                        logger.info(f"  {line.strip()}")
+        if not command_spec or not command_spec.loader or not config_spec or not config_spec.loader:
+            raise ImportError("Could not load Alembic modules from installed package")
+        
+        command = importlib.util.module_from_spec(command_spec)
+        command_spec.loader.exec_module(command)
+        
+        config_mod = importlib.util.module_from_spec(config_spec)
+        config_spec.loader.exec_module(config_mod)
+        Config = config_mod.Config
+        
+        # Run migrations using programmatic API
+        alembic_ini_path = project_root / "alembic.ini"
+        if not alembic_ini_path.exists():
+            logger.warning(f"alembic.ini not found at {alembic_ini_path}, skipping migrations")
         else:
-            logger.error(f"✗ Alembic migrations failed with return code {result.returncode}")
-            if result.stderr:
-                logger.error(f"Error output: {result.stderr}")
-            if result.stdout:
-                logger.error(f"Output: {result.stdout}")
-    except subprocess.TimeoutExpired:
-        logger.error("✗ Alembic migrations timed out after 5 minutes")
-    except FileNotFoundError:
-        logger.error("✗ Python executable not found. Cannot run Alembic migrations.")
+            alembic_cfg = Config(str(alembic_ini_path))
+            command.upgrade(alembic_cfg, "head")
+            logger.info("✓ Alembic migrations completed successfully")
+            
+    except ImportError as e:
+        logger.error(f"✗ Alembic not installed: {e}")
+        logger.error("Please ensure 'alembic' is in requirements.txt and installed: pip install alembic")
     except Exception as e:
         logger.error(f"✗ Error running Alembic migrations: {e}")
         logger.exception("Full traceback:")
