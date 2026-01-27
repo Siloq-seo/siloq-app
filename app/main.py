@@ -185,3 +185,85 @@ async def health_check():
     
     return health_status
 
+
+@app.get("/api/v1/db-health")
+async def database_health_check():
+    """
+    Database health check endpoint with detailed connection information.
+    
+    Returns:
+        Detailed database connection status and configuration (masked)
+    """
+    from sqlalchemy import text
+    from urllib.parse import urlparse, urlunparse
+    import time
+    
+    def mask_url(url: str) -> str:
+        """Mask sensitive parts of database URL"""
+        try:
+            parsed = urlparse(url)
+            if parsed.password:
+                masked = parsed._replace(password="***")
+                return urlunparse(masked)
+            return url
+        except Exception:
+            if len(url) > 20:
+                return f"{url[:10]}...{url[-10:]}"
+            return "***"
+    
+    result = {
+        "status": "unknown",
+        "async_database": {
+            "url": mask_url(settings.database_url),
+            "connected": False,
+            "response_time_ms": None,
+            "error": None,
+        },
+        "sync_database": {
+            "url": mask_url(settings.database_url_sync),
+            "configured": True,
+        },
+        "pool_status": {
+            "size": None,
+            "checked_in": None,
+            "checked_out": None,
+            "overflow": None,
+        },
+    }
+    
+    # Test async database connection
+    start_time = time.time()
+    try:
+        async with engine.begin() as conn:
+            # Test basic query
+            query_result = await conn.execute(text("SELECT 1 as test, version() as pg_version"))
+            row = query_result.first()
+            
+            response_time = (time.time() - start_time) * 1000  # Convert to milliseconds
+            
+            result["async_database"]["connected"] = True
+            result["async_database"]["response_time_ms"] = round(response_time, 2)
+            result["async_database"]["postgres_version"] = row.pg_version if row else "unknown"
+            result["status"] = "healthy"
+            
+    except Exception as e:
+        response_time = (time.time() - start_time) * 1000
+        result["async_database"]["connected"] = False
+        result["async_database"]["response_time_ms"] = round(response_time, 2)
+        result["async_database"]["error"] = str(e)
+        result["status"] = "unhealthy"
+    
+    # Get connection pool status
+    try:
+        pool = engine.pool
+        result["pool_status"] = {
+            "size": pool.size(),
+            "checked_in": pool.checkedin(),
+            "checked_out": pool.checkedout(),
+            "overflow": pool.overflow(),
+        }
+    except Exception as e:
+        result["pool_status"]["error"] = str(e)
+    
+    return result
+

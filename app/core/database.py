@@ -3,7 +3,35 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sess
 from sqlalchemy.orm import declarative_base
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 import ssl
+import logging
 from app.core.config import settings
+
+# Setup logger
+logger = logging.getLogger(__name__)
+
+# Log database URLs (masked for security)
+def mask_url(url: str) -> str:
+    """Mask sensitive parts of database URL for logging"""
+    try:
+        parsed = urlparse(url)
+        if parsed.password:
+            # Replace password with ***
+            masked = parsed._replace(password="***")
+            return urlunparse(masked)
+        return url
+    except Exception:
+        # If parsing fails, just show first/last few chars
+        if len(url) > 20:
+            return f"{url[:10]}...{url[-10:]}"
+        return "***"
+
+# Log original database URLs
+logger.info("=" * 80)
+logger.info("DATABASE CONFIGURATION")
+logger.info("=" * 80)
+logger.info(f"DATABASE_URL (async): {mask_url(settings.database_url)}")
+logger.info(f"DATABASE_URL_SYNC: {mask_url(settings.database_url_sync)}")
+logger.info("=" * 80)
 
 # Ensure database_url uses asyncpg driver for async operations
 # Digital Ocean and other platforms may inject postgresql:// URLs with sslmode
@@ -59,6 +87,13 @@ if database_url.startswith('postgresql://') or database_url.startswith('postgres
 if 'ssl' in connect_args and connect_args['ssl']:
     # Set connection timeout (in seconds) for asyncpg
     connect_args['timeout'] = 10  # 10 second connection timeout
+    logger.info("SSL enabled for database connection")
+else:
+    logger.info("SSL disabled for database connection")
+
+# Log final database URL (masked)
+logger.info(f"Final DATABASE_URL (after processing): {mask_url(database_url)}")
+logger.info(f"Connect args: ssl={'enabled' if 'ssl' in connect_args else 'disabled'}, timeout={connect_args.get('timeout', 'default')}")
 
 # Create async engine with connection pool settings
 engine = create_async_engine(
@@ -72,6 +107,9 @@ engine = create_async_engine(
     max_overflow=10,  # Maximum overflow connections
     pool_timeout=30,  # Timeout for getting connection from pool
 )
+
+logger.info("Database engine created successfully")
+logger.info("=" * 80)
 
 # Create async session factory
 AsyncSessionLocal = async_sessionmaker(
