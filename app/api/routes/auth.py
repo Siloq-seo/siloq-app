@@ -10,6 +10,12 @@ from app.core.database import get_db
 from app.core.auth import create_access_token, get_current_user
 from app.db.models import User
 
+
+# aplied logger for the debugging 
+import logging
+logger = logging.getLogger(__name__)
+
+
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 # Password hashing context
@@ -56,69 +62,91 @@ class LoginResponse(BaseModel):
     name: Optional[str] = None
 
 
-@router.post("/register", status_code=status.HTTP_201_CREATED, response_model=RegisterResponse)
+@router.post(
+    "/register",
+    status_code=status.HTTP_201_CREATED,
+    response_model=RegisterResponse,
+)
 async def register(
     request: RegisterRequest,
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Register a new user account.
-    
-    Args:
-        request: Registration data (email, password, name)
-        db: Database session
-        
-    Returns:
-        Registration response with access token
-        
-    Raises:
-        HTTPException: 400 if email already exists or validation fails
-    """
-    # Check if user already exists
-    result = await db.execute(
-        select(User).where(User.email == request.email.lower(), User.deleted_at.is_(None))
-    )
-    existing_user = result.scalar_one_or_none()
-    
-    if existing_user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email already registered"
+    logger.info("REGISTER → STEP 1: Request received")
+    logger.info(f"Payload email={request.email}")
+
+    try:
+        logger.info("REGISTER → STEP 2: Checking existing user")
+        result = await db.execute(
+            select(User).where(
+                User.email == request.email.lower(),
+                User.deleted_at.is_(None)
+            )
         )
-    
-    # Validate password
-    if len(request.password) < 8:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Password must be at least 8 characters"
+        existing_user = result.scalar_one_or_none()
+
+        if existing_user:
+            logger.warning("REGISTER → Email already exists")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email already registered",
+            )
+
+        logger.info("REGISTER → STEP 3: Validating password")
+        if len(request.password) < 8:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Password must be at least 8 characters",
+            )
+
+        logger.info("REGISTER → STEP 4: Hashing password")
+        password_hash = hash_password(request.password)
+
+        logger.info("REGISTER → STEP 5: Creating user object")
+        user = User(
+            email=request.email.lower(),
+            password_hash=password_hash,
+            name=request.name,
+            role="viewer",
         )
-    
-    # Hash password
-    password_hash = hash_password(request.password)
-    
-    # Create user
-    user = User(
-        email=request.email.lower(),
-        password_hash=password_hash,
-        name=request.name,
-        role="viewer",  # Default role
-    )
-    
-    db.add(user)
-    await db.commit()
-    await db.refresh(user)
-    
-    # Create access token
-    access_token = create_access_token(
-        data={"sub": str(user.id), "account_id": str(user.organization_id) if user.organization_id else None}
-    )
-    
-    return RegisterResponse(
-        success=True,
-        message="User registered successfully",
-        user_id=str(user.id),
-        access_token=access_token,
-    )
+
+        db.add(user)
+
+        logger.info("REGISTER → STEP 6: Committing to database")
+        await db.commit()
+        await db.refresh(user)
+
+        logger.info(f"REGISTER → STEP 7: User created id={user.id}")
+
+        logger.info("REGISTER → STEP 8: Creating access token")
+        access_token = create_access_token(
+            data={
+                "sub": str(user.id),
+                "account_id": (
+                    str(user.organization_id)
+                    if user.organization_id
+                    else None
+                ),
+            }
+        )
+
+        logger.info("REGISTER → SUCCESS")
+        return RegisterResponse(
+            success=True,
+            message="User registered successfully",
+            user_id=str(user.id),
+            access_token=access_token,
+        )
+
+    except HTTPException:
+        raise
+
+    except Exception as e:
+        logger.exception("REGISTER → UNEXPECTED ERROR")
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Registration failed",
+        )
 
 
 @router.post("/login", response_model=LoginResponse)
