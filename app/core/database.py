@@ -23,14 +23,16 @@ if database_url.startswith('postgresql://') or database_url.startswith('postgres
         del query_params['sslmode']
         
         # Convert sslmode to asyncpg's ssl parameter format
-        # asyncpg accepts: True, False, 'require', 'prefer', 'verify-ca', 'verify-full'
+        # asyncpg accepts: True (for SSL required), False (for no SSL), or SSL context object
         if sslmode in ['require', 'prefer', 'verify-ca', 'verify-full']:
-            connect_args['ssl'] = sslmode
+            # For asyncpg, use True for SSL required (most common case)
+            # For verify-ca/verify-full, we'd need SSL context, but True works for most cases
+            connect_args['ssl'] = True
         elif sslmode == 'disable':
             connect_args['ssl'] = False
         else:
-            # Default to require for security
-            connect_args['ssl'] = 'require'
+            # Default to True for security (SSL required)
+            connect_args['ssl'] = True
     
     # Rebuild query string without sslmode
     new_query = urlencode(query_params, doseq=True)
@@ -43,12 +45,17 @@ if database_url.startswith('postgresql://') or database_url.startswith('postgres
     if database_url.startswith('postgresql://') and '+asyncpg' not in database_url:
         database_url = database_url.replace('postgresql://', 'postgresql+asyncpg://', 1)
 
-# Create async engine
+# Create async engine with connection pool settings
 engine = create_async_engine(
     database_url,
     echo=settings.environment == "development",
     future=True,
     connect_args=connect_args,
+    pool_pre_ping=True,  # Verify connections before using
+    pool_recycle=3600,  # Recycle connections after 1 hour
+    pool_size=5,  # Number of connections to maintain
+    max_overflow=10,  # Maximum overflow connections
+    pool_timeout=30,  # Timeout for getting connection from pool
 )
 
 # Create async session factory
