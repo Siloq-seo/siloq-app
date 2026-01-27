@@ -51,6 +51,8 @@ async def lifespan(app: FastAPI):
         from alembic.config import Config
         from pathlib import Path
         import os
+        import time
+        from sqlalchemy import pool
         
         # Get project root - DigitalOcean runs from project root, so use cwd first
         # Fall back to __file__-based path for local development
@@ -68,13 +70,57 @@ async def lifespan(app: FastAPI):
             logger.warning(f"File-based root: {file_based_root}")
             logger.warning("Skipping migrations")
         else:
+            logger.info(f"Found alembic.ini at {alembic_ini_path}")
             alembic_cfg = Config(str(alembic_ini_path))
+            
             # Ensure we're in the project root directory for Alembic
             original_cwd = os.getcwd()
             try:
                 os.chdir(str(project_root))
+                logger.info("Starting migration upgrade to head...")
+                start_time = time.time()
+                
+                # Run the migration
                 command.upgrade(alembic_cfg, "head")
-                logger.info("✓ Alembic migrations completed successfully")
+                
+                elapsed_time = time.time() - start_time
+                
+                # Verify migration completed by checking current revision
+                try:
+                    from alembic.script import ScriptDirectory
+                    script = ScriptDirectory.from_config(alembic_cfg)
+                    head_revision = script.get_current_head()
+                    
+                    # Check database version
+                    from sqlalchemy import create_engine, text
+                    from app.core.config import settings
+                    
+                    sync_url = settings.database_url_sync
+                    if sync_url.startswith('postgresql+asyncpg://'):
+                        sync_url = sync_url.replace('postgresql+asyncpg://', 'postgresql://', 1)
+                    
+                    engine = create_engine(sync_url, poolclass=pool.NullPool)
+                    with engine.connect() as conn:
+                        result = conn.execute(text("SELECT version_num FROM alembic_version"))
+                        db_version = result.scalar()
+                    
+                    engine.dispose()
+                    
+                    if db_version:
+                        logger.info(f"✓ Alembic migrations completed successfully in {elapsed_time:.2f} seconds")
+                        logger.info(f"  Database is at revision: {db_version}")
+                        logger.info(f"  Head revision is: {head_revision}")
+                    else:
+                        logger.warning("Migration completed but no version found in database")
+                except Exception as verify_error:
+                    # Migration ran, but verification failed - still log success
+                    logger.info(f"✓ Alembic migrations completed in {elapsed_time:.2f} seconds")
+                    logger.warning(f"Could not verify migration version: {verify_error}")
+                
+            except Exception as migration_error:
+                elapsed_time = time.time() - start_time if 'start_time' in locals() else 0
+                logger.error(f"✗ Migration failed after {elapsed_time:.2f} seconds: {migration_error}")
+                raise
             finally:
                 os.chdir(original_cwd)
             
