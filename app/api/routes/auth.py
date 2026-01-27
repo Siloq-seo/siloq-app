@@ -148,11 +148,12 @@ async def register(
 
 
     except Exception as e:
-        logger.exception("REGISTER → UNEXPECTED ERROR")
+        logger.exception(f"REGISTER → UNEXPECTED ERROR: {type(e).__name__}: {str(e)}")
+        logger.exception("Full traceback:", exc_info=True)
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Registration failed",
+            detail=f"Registration failed: {str(e)}",
         )
 
 

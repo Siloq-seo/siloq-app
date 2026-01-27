@@ -81,9 +81,53 @@ async def lifespan(app: FastAPI):
                 start_time = time.time()
                 
                 # Run the migration
-                command.upgrade(alembic_cfg, "head")
+                logger.info("Executing Alembic upgrade command...")
+                try:
+                    command.upgrade(alembic_cfg, "head")
+                    logger.info("Alembic upgrade command completed")
+                except Exception as upgrade_error:
+                    logger.error(f"Migration upgrade failed: {upgrade_error}")
+                    logger.exception("Full upgrade error traceback:")
+                    # Check if alembic_version table exists and what version it has
+                    try:
+                        from sqlalchemy import create_engine, text
+                        from app.core.config import settings
+                        
+                        sync_url = settings.database_url_sync
+                        if sync_url.startswith('postgresql+asyncpg://'):
+                            sync_url = sync_url.replace('postgresql+asyncpg://', 'postgresql://', 1)
+                        
+                        engine = create_engine(sync_url, poolclass=pool.NullPool)
+                        with engine.connect() as conn:
+                            # Check if alembic_version exists
+                            result = conn.execute(text("""
+                                SELECT EXISTS (
+                                    SELECT FROM information_schema.tables 
+                                    WHERE table_schema = 'public' 
+                                    AND table_name = 'alembic_version'
+                                )
+                            """))
+                            version_table_exists = result.scalar()
+                            
+                            if version_table_exists:
+                                result = conn.execute(text("SELECT version_num FROM alembic_version"))
+                                current_version = result.scalar()
+                                logger.error(f"Current Alembic version in database: {current_version}")
+                                logger.error("Migration may have partially completed. You may need to:")
+                                logger.error("1. Check which tables exist")
+                                logger.error("2. Manually fix alembic_version table")
+                                logger.error("3. Or drop and re-run migrations")
+                            else:
+                                logger.error("alembic_version table does not exist - migration never completed")
+                        
+                        engine.dispose()
+                    except Exception as check_error:
+                        logger.error(f"Could not check migration status: {check_error}")
+                    
+                    raise
                 
                 elapsed_time = time.time() - start_time
+                logger.info(f"Migration execution took {elapsed_time:.2f} seconds")
                 
                 # Verify migration completed by checking current revision
                 try:
@@ -145,6 +189,30 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+
+# Add global exception handler for unhandled exceptions
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """Handle all unhandled exceptions"""
+    """Handle all unhandled exceptions"""
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.exception(f"Unhandled exception in {request.url.path}: {type(exc).__name__}: {str(exc)}")
+    
+    from fastapi.responses import JSONResponse
+    from fastapi import status
+    
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={
+            "error": {
+                "code": "INTERNAL_SERVER_ERROR",
+                "message": "An unexpected error occurred",
+                "details": str(exc) if settings.environment != "production" else "Internal server error",
+            },
+            "path": str(request.url.path),
+        },
+    )
 
 # CORS middleware - environment-aware configuration
 def get_cors_origins() -> list:
