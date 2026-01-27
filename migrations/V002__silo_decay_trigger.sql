@@ -105,6 +105,7 @@ RETURNS TABLE (
 ) AS $$
 DECLARE
     archived INTEGER := 0;
+    orphaned_count INTEGER := 0;
     event_id_val BIGINT;
 BEGIN
     -- Archive stale proposals
@@ -138,7 +139,9 @@ BEGIN
         -- Task 3: Product Protection - Exclude product pages from decay
         AND (p.governance_checks->>'page_type' IS NULL OR p.governance_checks->>'page_type' != 'product');
     
-    GET DIAGNOSTICS archived = archived + ROW_COUNT;
+    -- Get ROW_COUNT into a variable, then add to archived
+    GET DIAGNOSTICS orphaned_count = ROW_COUNT;
+    archived := archived + orphaned_count;
     
     -- Log manual decay event
     INSERT INTO system_events (event_type, entity_type, entity_id, payload)
