@@ -35,14 +35,95 @@ from app.exceptions import (
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan events"""
+    import logging
+    from sqlalchemy import text, inspect
+    
+    logger = logging.getLogger(__name__)
+    
     # Startup
     await redis_client.connect()
     await queue_manager.initialize()
 
-    # Note: In production, use SQL migrations (see migrations/ directory)
-    # Run migrations with: python run_migration.py migrations/V*.sql
-    # async with engine.begin() as conn:
-    #     await conn.run_sync(Base.metadata.create_all)
+    # Check if users table exists, create if missing (for development)
+    try:
+        async with engine.begin() as conn:
+            # Check if users table exists
+            result = await conn.execute(text("""
+                SELECT EXISTS (
+                    SELECT FROM information_schema.tables 
+                    WHERE table_schema = 'public' 
+                    AND table_name = 'users'
+                )
+            """))
+            users_exists = result.scalar()
+            
+            # Check if organizations table exists
+            result = await conn.execute(text("""
+                SELECT EXISTS (
+                    SELECT FROM information_schema.tables 
+                    WHERE table_schema = 'public' 
+                    AND table_name = 'organizations'
+                )
+            """))
+            orgs_exists = result.scalar()
+            
+            if not orgs_exists:
+                logger.warning("Organizations table not found. Creating organizations table...")
+                await conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS organizations (
+                        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        name TEXT NOT NULL,
+                        slug TEXT NOT NULL UNIQUE,
+                        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                        deleted_at TIMESTAMPTZ,
+                        CONSTRAINT chk_org_name_not_empty CHECK (length(trim(name)) > 0),
+                        CONSTRAINT chk_org_slug_not_empty CHECK (length(trim(slug)) > 0)
+                    )
+                """))
+                await conn.execute(text("""
+                    CREATE INDEX IF NOT EXISTS idx_organizations_slug ON organizations(slug)
+                """))
+                logger.info("Organizations table created")
+            
+            if not users_exists:
+                logger.warning("Users table not found. Creating users table...")
+                await conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS users (
+                        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        organization_id UUID REFERENCES organizations(id) ON DELETE SET NULL,
+                        email TEXT NOT NULL UNIQUE,
+                        password_hash TEXT,
+                        name TEXT,
+                        role TEXT NOT NULL DEFAULT 'viewer',
+                        generation_enabled BOOLEAN NOT NULL DEFAULT true,
+                        mfa_enabled BOOLEAN NOT NULL DEFAULT false,
+                        mfa_secret TEXT,
+                        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                        last_login_at TIMESTAMPTZ,
+                        deleted_at TIMESTAMPTZ,
+                        CONSTRAINT chk_user_email_not_empty CHECK (length(trim(email)) > 0),
+                        CONSTRAINT chk_user_role_valid CHECK (role IN ('owner', 'admin', 'editor', 'viewer')),
+                        CONSTRAINT chk_user_email_format CHECK (email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$')
+                    )
+                """))
+                await conn.execute(text("""
+                    CREATE INDEX IF NOT EXISTS idx_users_email ON users(email) WHERE deleted_at IS NULL
+                """))
+                await conn.execute(text("""
+                    CREATE INDEX IF NOT EXISTS idx_users_organization_id ON users(organization_id) WHERE deleted_at IS NULL
+                """))
+                await conn.execute(text("""
+                    CREATE INDEX IF NOT EXISTS idx_users_role ON users(role)
+                """))
+                logger.info("Users table created successfully")
+            else:
+                logger.info("Users table exists")
+                
+    except Exception as e:
+        logger.error(f"Error checking/creating users table: {e}")
+        # Don't fail startup, but log the error
     
     yield
     
