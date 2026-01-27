@@ -194,9 +194,12 @@ async def database_health_check():
     Returns:
         Detailed database connection status and configuration (masked)
     """
+    import logging
     from sqlalchemy import text
     from urllib.parse import urlparse, urlunparse
     import time
+    
+    logger = logging.getLogger(__name__)
     
     def mask_url(url: str) -> str:
         """Mask sensitive parts of database URL"""
@@ -232,25 +235,45 @@ async def database_health_check():
     }
     
     # Test async database connection
+    logger.error("DB-HEALTH → Starting database connection test")
+    logger.error(f"DB-HEALTH → Database URL (masked): {mask_url(settings.database_url)}")
+    
     start_time = time.time()
     try:
+        logger.error("DB-HEALTH → Attempting to get connection from pool...")
         async with engine.begin() as conn:
+            logger.error("DB-HEALTH → Connection obtained, executing query...")
             # Test basic query
             query_result = await conn.execute(text("SELECT 1 as test, version() as pg_version"))
             row = query_result.first()
             
             response_time = (time.time() - start_time) * 1000  # Convert to milliseconds
             
+            logger.error(f"DB-HEALTH → SUCCESS! Connected in {round(response_time, 2)}ms")
             result["async_database"]["connected"] = True
             result["async_database"]["response_time_ms"] = round(response_time, 2)
             result["async_database"]["postgres_version"] = row.pg_version if row else "unknown"
             result["status"] = "healthy"
             
-    except Exception as e:
+    except TimeoutError as e:
         response_time = (time.time() - start_time) * 1000
+        logger.error(f"DB-HEALTH → TIMEOUT ERROR after {round(response_time, 2)}ms")
+        logger.error(f"DB-HEALTH → TimeoutError: {str(e)}")
+        logger.error(f"DB-HEALTH → Error type: {type(e).__name__}")
+        logger.exception("DB-HEALTH → Full traceback:")
         result["async_database"]["connected"] = False
         result["async_database"]["response_time_ms"] = round(response_time, 2)
-        result["async_database"]["error"] = str(e)
+        result["async_database"]["error"] = f"TimeoutError: {str(e)}"
+        result["status"] = "unhealthy"
+    except Exception as e:
+        response_time = (time.time() - start_time) * 1000
+        logger.error(f"DB-HEALTH → CONNECTION ERROR after {round(response_time, 2)}ms")
+        logger.error(f"DB-HEALTH → Error: {str(e)}")
+        logger.error(f"DB-HEALTH → Error type: {type(e).__name__}")
+        logger.exception("DB-HEALTH → Full traceback:")
+        result["async_database"]["connected"] = False
+        result["async_database"]["response_time_ms"] = round(response_time, 2)
+        result["async_database"]["error"] = f"{type(e).__name__}: {str(e)}"
         result["status"] = "unhealthy"
     
     # Get connection pool status
