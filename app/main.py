@@ -49,9 +49,29 @@ async def lifespan(app: FastAPI):
     migration_success = await run_all_migrations(engine)
     if migration_success:
         logger.info("Database migrations completed successfully")
+        
+        # Verify critical tables exist
+        try:
+            from sqlalchemy import text
+            async with engine.begin() as conn:
+                result = await conn.execute(text("""
+                    SELECT EXISTS (
+                        SELECT FROM information_schema.tables 
+                        WHERE table_schema = 'public' 
+                        AND table_name = 'users'
+                    )
+                """))
+                users_exists = result.scalar()
+                if not users_exists:
+                    logger.error("CRITICAL: users table does not exist after migrations!")
+                    logger.error("Migrations may have failed silently. Check logs above.")
+                else:
+                    logger.info("✓ Verified: users table exists")
+        except Exception as e:
+            logger.error(f"Error verifying tables after migration: {e}")
     else:
-        logger.warning("Some migrations may have failed - check logs above")
-        # Don't fail startup, but log the warning
+        logger.error("Migrations failed - check logs above")
+        # Don't fail startup, but log the error
     
     yield
     
