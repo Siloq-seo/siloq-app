@@ -2,6 +2,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.orm import declarative_base
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
+import ssl
 from app.core.config import settings
 
 # Ensure database_url uses asyncpg driver for async operations
@@ -23,16 +24,25 @@ if database_url.startswith('postgresql://') or database_url.startswith('postgres
         del query_params['sslmode']
         
         # Convert sslmode to asyncpg's ssl parameter format
-        # asyncpg accepts: True (for SSL required), False (for no SSL), or SSL context object
-        if sslmode in ['require', 'prefer', 'verify-ca', 'verify-full']:
-            # For asyncpg, use True for SSL required (most common case)
-            # For verify-ca/verify-full, we'd need SSL context, but True works for most cases
-            connect_args['ssl'] = True
+        # For DigitalOcean managed databases, use SSL context that doesn't verify certificates
+        if sslmode in ['require', 'prefer']:
+            # Create SSL context that requires SSL but doesn't verify certificate
+            # This is common for managed database services
+            ssl_context = ssl.create_default_context()
+            ssl_context.check_hostname = False
+            ssl_context.verify_mode = ssl.CERT_NONE
+            connect_args['ssl'] = ssl_context
+        elif sslmode in ['verify-ca', 'verify-full']:
+            # For verify-ca/verify-full, use default SSL context with verification
+            connect_args['ssl'] = ssl.create_default_context()
         elif sslmode == 'disable':
             connect_args['ssl'] = False
         else:
-            # Default to True for security (SSL required)
-            connect_args['ssl'] = True
+            # Default: create SSL context without verification (for managed databases)
+            ssl_context = ssl.create_default_context()
+            ssl_context.check_hostname = False
+            ssl_context.verify_mode = ssl.CERT_NONE
+            connect_args['ssl'] = ssl_context
     
     # Rebuild query string without sslmode
     new_query = urlencode(query_params, doseq=True)
@@ -44,6 +54,11 @@ if database_url.startswith('postgresql://') or database_url.startswith('postgres
     # Convert to asyncpg URL
     if database_url.startswith('postgresql://') and '+asyncpg' not in database_url:
         database_url = database_url.replace('postgresql://', 'postgresql+asyncpg://', 1)
+
+# Add connection timeout to connect_args if SSL is enabled
+if 'ssl' in connect_args and connect_args['ssl']:
+    # Set connection timeout (in seconds) for asyncpg
+    connect_args['timeout'] = 10  # 10 second connection timeout
 
 # Create async engine with connection pool settings
 engine = create_async_engine(
