@@ -140,6 +140,13 @@ async def register(
     except HTTPException:
         raise
 
+    except TimeoutError:
+        raise HTTPException(
+            status_code=503,
+            detail="Database temporarily unavailable"
+        )
+
+
     except Exception as e:
         logger.exception("REGISTER → UNEXPECTED ERROR")
         await db.rollback()
