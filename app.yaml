@@ -43,6 +43,11 @@ services:
       - key: DATABASE_URL
         scope: RUN_TIME
         type: SECRET
+      - key: DATABASE_URL_SYNC
+        scope: RUN_TIME
+        type: SECRET
+        # Note: Same as DATABASE_URL but with postgresql:// instead of postgresql+asyncpg://
+        # Alembic needs sync connection (psycopg2)
       - key: REDIS_URL
         scope: RUN_TIME
         type: SECRET
