@@ -41,7 +41,13 @@ async def run_all_migrations(engine: AsyncEngine) -> bool:
     logger.info(f"Found {len(migration_files)} migration files to run")
     
     try:
+        # Use engine.begin() for transaction management
         async with engine.begin() as conn:
+            # Get the underlying asyncpg connection
+            # SQLAlchemy 2.0 style: access the raw connection
+            raw_conn = await conn.get_raw_connection()
+            asyncpg_conn = raw_conn.driver_connection
+            
             for migration_file in migration_files:
                 logger.info(f"Running migration: {migration_file.name}...")
                 
@@ -49,42 +55,22 @@ async def run_all_migrations(engine: AsyncEngine) -> bool:
                     # Read SQL file
                     sql_content = migration_file.read_text(encoding="utf-8")
                     
-                    # Split by semicolon and execute each statement
-                    # Filter out empty statements and comment-only lines
-                    statements = [
-                        s.strip() 
-                        for s in sql_content.split(';') 
-                        if s.strip() and not s.strip().startswith('--')
-                    ]
-                    
-                    # Execute each statement in order
-                    for i, statement in enumerate(statements, 1):
-                        if not statement:
-                            continue
-                        
-                        try:
-                            # Use text() for SQLAlchemy 2.0 compatibility
-                            await conn.execute(text(statement))
-                        except Exception as stmt_error:
-                            error_str = str(stmt_error).lower()
-                            # Ignore "already exists" errors (idempotent migrations)
-                            if "already exists" in error_str:
-                                logger.debug(f"  Statement {i}: Object already exists (skipping)")
-                                continue
-                            # Ignore "does not exist" errors for DROP statements
-                            if "does not exist" in error_str and "drop" in statement.lower():
-                                logger.debug(f"  Statement {i}: Object does not exist (DROP statement, skipping)")
-                                continue
-                            # Log and re-raise other errors
-                            logger.error(f"  Statement {i}/{len(statements)} failed in {migration_file.name}")
-                            logger.error(f"  Error: {stmt_error}")
-                            logger.error(f"  Statement preview: {statement[:300]}...")
-                            raise
+                    # Execute entire SQL file using asyncpg's native execute
+                    # asyncpg.execute() handles multi-statement SQL files correctly
+                    # It automatically splits by semicolon and executes each statement
+                    await asyncpg_conn.execute(sql_content)
                     
                     logger.info(f"✓ Migration completed: {migration_file.name}")
                     
                 except Exception as e:
+                    error_str = str(e).lower()
+                    # Ignore "already exists" errors (idempotent migrations)
+                    if "already exists" in error_str:
+                        logger.info(f"  (Migration already applied: {migration_file.name})")
+                        continue
+                    # Log and re-raise other errors
                     logger.error(f"✗ Migration failed: {migration_file.name} - {e}")
+                    logger.exception("Full traceback:")
                     raise
         
         logger.info("✓ All migrations completed successfully")
