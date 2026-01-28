@@ -22,9 +22,24 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
+def _truncate_for_bcrypt(password: str) -> str:
+    """
+    Ensure password is at most 72 bytes for bcrypt.
+    Bcrypt ignores everything after 72 bytes, and passlib will raise
+    if we exceed this limit for some inputs. We explicitly truncate
+    in byte space to avoid user-facing errors.
+    """
+    data = password.encode("utf-8")
+    if len(data) <= 72:
+        return password
+    truncated = data[:72]
+    return truncated.decode("utf-8", errors="ignore")
+
+
 def hash_password(password: str) -> str:
-    """Hash a password using bcrypt"""
-    return pwd_context.hash(password)
+    """Hash a password using bcrypt, safely handling >72‑byte inputs."""
+    safe_password = _truncate_for_bcrypt(password)
+    return pwd_context.hash(safe_password)
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
