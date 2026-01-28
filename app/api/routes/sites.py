@@ -6,10 +6,12 @@ from uuid import UUID
 from typing import List, Optional
 from urllib.parse import urlparse
 from pydantic import BaseModel, AnyHttpUrl
+from datetime import datetime
+import secrets
 
 from app.core.database import get_db
-from app.core.auth import get_current_user, verify_site_access
-from app.db.models import Site, Page, GenerationJob
+from app.core.auth import get_current_user, verify_site_access, hash_api_key
+from app.db.models import Site, Page, GenerationJob, APIKey
 from app.schemas.sites import SiteResponse
 
 router = APIRouter(prefix="/sites", tags=["sites"])
@@ -63,6 +65,19 @@ async def list_sites(
         )
         jobs_result = await db.execute(jobs_query)
         active_jobs = jobs_result.scalar() or 0
+
+        # Get latest active API key (masked for display)
+        api_key_display: Optional[str] = None
+        api_key_query = (
+            select(APIKey)
+            .where(APIKey.site_id == site.id, APIKey.is_active.is_(True))
+            .order_by(APIKey.created_at.desc())
+        )
+        api_key_result = await db.execute(api_key_query)
+        latest_key = api_key_result.scalars().first()
+        if latest_key:
+            # Build a display string like "sk-xxxx..." from key_prefix
+            api_key_display = f"sk-{latest_key.key_prefix}"
         
         # Calculate silo health score (simplified - in real implementation, calculate from silo structure)
         silo_health_score = 85  # Default score
@@ -77,6 +92,7 @@ async def list_sites(
             "siloHealthScore": silo_health_score,
             "activeContentJobs": active_jobs,
             "pageCount": page_count,
+            "apiKey": api_key_display,
         })
     
     return sites_list
@@ -219,4 +235,93 @@ async def get_site_pages(
         })
     
     return pages_list
+
+
+@router.post("/{site_id}/api-key")
+async def generate_site_api_key(
+    site_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+    site: Site = Depends(verify_site_access),
+):
+    """
+    Generate a new API key for a site.
+
+    This is a convenience wrapper used by the dashboard, so it doesn't have to
+    know about the lower-level /api-keys endpoint.
+
+    Returns a masked key prefix suitable for display in the UI.
+    """
+    # Optional: revoke existing active keys for this site
+    existing_keys_result = await db.execute(
+        select(APIKey).where(APIKey.site_id == site_id, APIKey.is_active.is_(True))
+    )
+    existing_keys = existing_keys_result.scalars().all()
+    now = datetime.utcnow()
+    for key in existing_keys:
+        key.is_active = False
+        key.revoked_at = now
+        key.revoked_reason = "Revoked by dashboard API key regeneration"
+
+    # Generate new API key (same logic as api_keys.generate_api_key)
+    random_bytes = secrets.token_bytes(32)
+    raw_key = random_bytes.hex()
+    api_key = f"sk-{raw_key}"
+    key_hash = hash_api_key(api_key)
+    key_prefix = api_key[:8]  # first 8 chars for identification
+
+    api_key_obj = APIKey(
+        site_id=site_id,
+        key_hash=key_hash,
+        key_prefix=key_prefix,
+        name="WordPress Plugin",  # descriptive name
+        scopes=["read", "write"],
+        expires_at=None,
+    )
+
+    db.add(api_key_obj)
+    await db.commit()
+    await db.refresh(api_key_obj)
+
+    # Return masked key for UI; full key should be copied immediately if needed
+    return {
+        "id": str(api_key_obj.id),
+        "siteId": str(site_id),
+        "apiKey": api_key,          # full key (only time it's returned)
+        "apiKeyPrefix": key_prefix, # for display
+    }
+
+
+@router.delete("/{site_id}/api-key")
+async def revoke_site_api_keys(
+    site_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+    site: Site = Depends(verify_site_access),
+):
+    """
+    Revoke all active API keys for a site.
+
+    This matches the dashboard's `DELETE /sites/{siteId}/api-key` call.
+    """
+    result = await db.execute(
+        select(APIKey).where(APIKey.site_id == site_id, APIKey.is_active.is_(True))
+    )
+    keys = result.scalars().all()
+
+    if not keys:
+        # Nothing to revoke, but treat as success so UI stays simple
+        return {"success": True, "revoked": 0}
+
+    now = datetime.utcnow()
+    revoked_count = 0
+    for key in keys:
+        key.is_active = False
+        key.revoked_at = now
+        key.revoked_reason = "Revoked by dashboard"
+        revoked_count += 1
+
+    await db.commit()
+
+    return {"success": True, "revoked": revoked_count}
 
