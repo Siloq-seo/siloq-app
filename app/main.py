@@ -80,11 +80,76 @@ async def lifespan(app: FastAPI):
                 logger.info("Starting migration upgrade to head...")
                 start_time = time.time()
                 
-                # Run the migration
+                # Run the migration with better logging
                 logger.info("Executing Alembic upgrade command...")
+                logger.info("This may take several minutes for initial schema creation...")
+                
+                # Check current state before migration
                 try:
+                    from sqlalchemy import create_engine, text
+                    from app.core.config import settings
+                    
+                    sync_url = settings.database_url_sync
+                    if sync_url.startswith('postgresql+asyncpg://'):
+                        sync_url = sync_url.replace('postgresql+asyncpg://', 'postgresql://', 1)
+                    
+                    check_engine = create_engine(sync_url, poolclass=pool.NullPool)
+                    with check_engine.connect() as conn:
+                        # Count existing tables
+                        result = conn.execute(text("""
+                            SELECT COUNT(*) 
+                            FROM information_schema.tables 
+                            WHERE table_schema = 'public' 
+                            AND table_type = 'BASE TABLE'
+                        """))
+                        table_count_before = result.scalar()
+                        logger.info(f"Tables before migration: {table_count_before}")
+                    check_engine.dispose()
+                except Exception as check_err:
+                    logger.warning(f"Could not check table count: {check_err}")
+                
+                # Configure Alembic to show more verbose output
+                import logging as alembic_logging
+                alembic_logger = alembic_logging.getLogger('alembic')
+                alembic_logger.setLevel(logging.INFO)
+                alembic_runtime_logger = alembic_logging.getLogger('alembic.runtime.migration')
+                alembic_runtime_logger.setLevel(logging.INFO)
+                
+                try:
+                    # Run upgrade with verbose output
+                    logger.info("Starting migration execution (this may take 1-5 minutes)...")
                     command.upgrade(alembic_cfg, "head")
-                    logger.info("Alembic upgrade command completed")
+                    logger.info("✓ Alembic upgrade command completed successfully")
+                    
+                    # Check tables after migration
+                    try:
+                        check_engine = create_engine(sync_url, poolclass=pool.NullPool)
+                        with check_engine.connect() as conn:
+                            result = conn.execute(text("""
+                                SELECT COUNT(*) 
+                                FROM information_schema.tables 
+                                WHERE table_schema = 'public' 
+                                AND table_type = 'BASE TABLE'
+                            """))
+                            table_count_after = result.scalar()
+                            logger.info(f"Tables after migration: {table_count_after}")
+                            
+                            # Check for critical tables
+                            critical_tables = ['users', 'organizations', 'sites', 'pages']
+                            for table in critical_tables:
+                                result = conn.execute(text(f"""
+                                    SELECT EXISTS (
+                                        SELECT FROM information_schema.tables 
+                                        WHERE table_schema = 'public' 
+                                        AND table_name = '{table}'
+                                    )
+                                """))
+                                exists = result.scalar()
+                                status = "✓" if exists else "✗"
+                                logger.info(f"  {status} Table '{table}': {'exists' if exists else 'MISSING'}")
+                        check_engine.dispose()
+                    except Exception as verify_err:
+                        logger.warning(f"Could not verify tables: {verify_err}")
                 except Exception as upgrade_error:
                     logger.error(f"Migration upgrade failed: {upgrade_error}")
                     logger.exception("Full upgrade error traceback:")

@@ -1,6 +1,6 @@
 """Alembic environment configuration for auto-generating migrations from SQLAlchemy models"""
 from logging.config import fileConfig
-from sqlalchemy import engine_from_config, pool
+from sqlalchemy import engine_from_config, pool, text as sa_text
 from alembic import context
 
 # Import your models and config
@@ -23,6 +23,11 @@ config = context.config
 # Interpret the config file for Python logging
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
+
+# Set up more verbose logging for migrations
+import logging
+logging.getLogger('alembic').setLevel(logging.INFO)
+logging.getLogger('alembic.runtime.migration').setLevel(logging.INFO)
 
 # Set the SQLAlchemy URL from settings (use sync URL for Alembic)
 # Ensure it uses psycopg2 (sync driver), not asyncpg
