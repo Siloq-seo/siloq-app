@@ -11,7 +11,7 @@ from app.schemas.sites import SiteCreate, SiteResponse
 router = APIRouter(prefix="/sites", tags=["sites"])
 
 
-@router.post("", status_code=status.HTTP_201_CREATED, response_model=SiteResponse)
+@router.get("", status_code=status.HTTP_201_CREATED, response_model=SiteResponse)
 async def create_site(
     site_data: SiteCreate,
     db: AsyncSession = Depends(get_db),
