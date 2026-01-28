@@ -9,7 +9,11 @@ from app.core.config import settings
 from app.core.database import engine, Base
 from app.core.redis import redis_client
 from app.core.rate_limit import RateLimitMiddleware
-from app.api.routes import auth_router, sites_router, pages_router, jobs_router, silos_router, onboarding_router, api_keys_router, scans_router
+from app.api.routes import (
+    auth_router, sites_router, pages_router, jobs_router, silos_router,
+    onboarding_router, api_keys_router, scans_router, content_jobs_router,
+    billing_router, entities_router, restoration_router, events_router
+)
 from app.api.routes.wordpress import router as wordpress_router
 from app.queues.queue_manager import queue_manager
 from app.api.exception_handlers import (
@@ -159,6 +163,11 @@ app.include_router(onboarding_router, prefix="/api/v1")
 app.include_router(wordpress_router, prefix="/api/v1")
 app.include_router(api_keys_router, prefix="/api/v1")
 app.include_router(scans_router, prefix="/api/v1")
+app.include_router(content_jobs_router, prefix="/api/v1")
+app.include_router(billing_router, prefix="/api/v1")
+app.include_router(entities_router, prefix="/api/v1")
+app.include_router(restoration_router, prefix="/api/v1")
+app.include_router(events_router, prefix="/api/v1")
 
 
 @app.get("/")
