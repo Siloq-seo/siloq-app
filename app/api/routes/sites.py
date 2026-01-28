@@ -3,17 +3,34 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from uuid import UUID
-from typing import List
+from typing import List, Optional
+from urllib.parse import urlparse
+from pydantic import BaseModel, AnyHttpUrl
 
 from app.core.database import get_db
 from app.core.auth import get_current_user, verify_site_access
 from app.db.models import Site, Page, GenerationJob
-from app.schemas.sites import SiteCreate, SiteResponse
+from app.schemas.sites import SiteResponse
 
 router = APIRouter(prefix="/sites", tags=["sites"])
 
 
-@router.get("", response_model=List[SiteResponse])
+class DashboardSiteCreate(BaseModel):
+    """
+    Payload used by siloq-dashboard when creating a site.
+
+    Example:
+    {
+      "url": "https://siloq.ai/",
+      "name": "Siloq"
+    }
+    """
+
+    url: AnyHttpUrl
+    name: Optional[str] = None
+
+
+@router.get("")
 async def list_sites(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
@@ -67,7 +84,7 @@ async def list_sites(
 
 @router.post("", status_code=status.HTTP_201_CREATED, response_model=SiteResponse)
 async def create_site(
-    site_data: SiteCreate,
+    site_data: DashboardSiteCreate,
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
@@ -81,9 +98,18 @@ async def create_site(
     Returns:
         Created site with ID
     """
+    # Derive domain from URL
+    parsed = urlparse(str(site_data.url))
+    domain = parsed.netloc or parsed.path  # handles cases like "example.com"
+    if not domain:
+        raise HTTPException(status_code=400, detail="Invalid site URL")
+
+    # Use provided name or fall back to domain
+    name = site_data.name or domain
+
     # In a future enhancement, we will associate sites with the authenticated
     # account/organization to enforce ownership at the data model level.
-    site = Site(name=site_data.name, domain=site_data.domain)
+    site = Site(name=name, domain=domain)
     db.add(site)
     await db.commit()
     await db.refresh(site)
