@@ -9,7 +9,14 @@ from datetime import datetime
 
 from app.core.database import get_db
 from app.db.models import Scan, Site
-from app.schemas.scans import ScanRequest, ScanResponse, ScanSummary
+from app.schemas.scans import (
+    ScanRequest,
+    ScanResponse,
+    ScanSummary,
+    ScanReportResponse,
+    ScanReportSummary,
+    KeywordCannibalizationItem,
+)
 from app.services.scanning import WebsiteScanner
 
 
@@ -138,6 +145,115 @@ async def create_scan(
         error_message=scan.error_message,
         created_at=scan.created_at,
         completed_at=scan.completed_at,
+    )
+
+
+@router.get("/{scan_id}/report", response_model=ScanReportResponse)
+async def get_scan_report(
+    scan_id: UUID,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get full lead-gen report for a scan (Keyword Cannibalization Report).
+    No authentication required. Used by WordPress plugin "Get Full Report" CTA.
+    """
+    scan = await db.get(Scan, scan_id)
+    if not scan:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Scan not found",
+        )
+    recommendations = scan.recommendations or []
+    content_details = scan.content_details or {}
+    structure_details = scan.structure_details or {}
+    pages_crawled = scan.pages_crawled or 0
+    url = scan.url or ""
+
+    # Cannibalization-style conflicts derived from Content/Structure recommendations
+    content_issues = content_details.get("issues", [])
+    structure_issues = structure_details.get("issues", [])
+    content_recs = [r for r in recommendations if (r.get("category") or "").lower() == "content"]
+    structure_recs = [r for r in recommendations if (r.get("category") or "").lower() == "structure"]
+    conflict_count = len(content_recs) + len(structure_recs)
+    if conflict_count == 0:
+        conflict_count = len(content_issues) + len(structure_issues)
+    if conflict_count == 0 and recommendations:
+        conflict_count = min(len(recommendations), 5)
+
+    # Overall risk level from score and conflict count
+    score = scan.overall_score or 0
+    if conflict_count >= 5 or score < 50:
+        risk_level = "High"
+    elif conflict_count >= 2 or score < 70:
+        risk_level = "Medium"
+    else:
+        risk_level = "Low"
+
+    # Build keyword cannibalization list from content/structure issues and recommendations
+    keyword_details: List[dict] = []
+    seen_keys: set = set()
+    for rec in recommendations:
+        cat = (rec.get("category") or "").lower()
+        if cat not in ("content", "structure"):
+            continue
+        issue = (rec.get("issue") or "Keyword conflict").strip()
+        if not issue or issue in seen_keys:
+            continue
+        seen_keys.add(issue)
+        keyword_name = issue[:80] if len(issue) > 80 else issue
+        severity = "High" if (rec.get("priority") or "").lower() == "high" else "Medium"
+        keyword_details.append({
+            "keyword": keyword_name,
+            "conflicting_urls": [url] if url else [],
+            "conflict_type": "same intent" if cat == "content" else "same keyword",
+            "severity": severity,
+        })
+    for issue in (content_issues + structure_issues)[:5]:
+        issue_str = (issue if isinstance(issue, str) else str(issue)).strip()[:80]
+        if issue_str and issue_str not in seen_keys:
+            seen_keys.add(issue_str)
+            keyword_details.append({
+                "keyword": issue_str,
+                "conflicting_urls": [url] if url else [],
+                "conflict_type": "same intent",
+                "severity": "Medium",
+            })
+
+    if not keyword_details and conflict_count > 0:
+        keyword_details = [{
+            "keyword": "Multiple pages competing for similar topics",
+            "conflicting_urls": [url] if url else [],
+            "conflict_type": "same intent",
+            "severity": "High" if risk_level == "High" else "Medium",
+        }]
+
+    summary = ScanReportSummary(
+        website_url=url,
+        total_pages_analyzed=pages_crawled,
+        total_cannibalization_conflicts=conflict_count,
+        overall_risk_level=risk_level,
+    )
+    educational = {
+        "title": "What is keyword cannibalization?",
+        "body": "Keyword cannibalization occurs when multiple pages on your site target the same or very similar keywords. Search engines may split rankings between these pages or pick the wrong one, which hurts your visibility and traffic. Consolidating or clearly differentiating content helps you rank better and gives users a clearer path.",
+    }
+    locked = [
+        "Page consolidation",
+        "Primary keyword assignment",
+        "Content silo restructuring",
+    ]
+    upgrade_cta = {
+        "label": "Unlock Full Report & Fix Issues",
+        "scan_id_param": "scan_id",
+    }
+
+    return ScanReportResponse(
+        scan_id=scan.id,
+        scan_summary=summary,
+        keyword_cannibalization_details=[KeywordCannibalizationItem(**k) for k in keyword_details],
+        educational_explanation=educational,
+        locked_recommendations=locked,
+        upgrade_cta=upgrade_cta,
     )
 
 

@@ -74,3 +74,32 @@ class ScanSummary(BaseModel):
     completed_at: Optional[datetime]
     
     model_config = ConfigDict(from_attributes=True)
+
+
+# --- Lead-gen full report (keyword cannibalization report) ---
+
+
+class ScanReportSummary(BaseModel):
+    """Scan summary for lead-gen report"""
+    website_url: str
+    total_pages_analyzed: int
+    total_cannibalization_conflicts: int
+    overall_risk_level: str  # Low | Medium | High
+
+
+class KeywordCannibalizationItem(BaseModel):
+    """Single cannibalization conflict for report"""
+    keyword: str
+    conflicting_urls: List[str]  # Top 2-3
+    conflict_type: str  # "same intent" | "same keyword"
+    severity: str  # "High" | "Medium"
+
+
+class ScanReportResponse(BaseModel):
+    """Full lead-gen report (no auth required to view)"""
+    scan_id: UUID
+    scan_summary: ScanReportSummary
+    keyword_cannibalization_details: List[KeywordCannibalizationItem]
+    educational_explanation: Dict[str, str]  # title, body
+    locked_recommendations: List[str]  # Teaser titles only
+    upgrade_cta: Dict[str, str]  # label, url (with scan_id appended by backend or frontend)

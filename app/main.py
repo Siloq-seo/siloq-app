@@ -89,23 +89,38 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 # CORS middleware - environment-aware configuration
 def get_cors_origins() -> list:
-    """Get CORS origins based on environment"""
+    """Get CORS origins based on environment.
+    When allow_credentials=True, browsers require explicit origins (not '*').
+    """
+
     if settings.environment == "production":
         # In production, parse from comma-separated list or use specific domains
         origins = []
         if settings.cors_origins and settings.cors_origins != "*":
             # Normalize origins: remove trailing slashes
-            origins = [origin.strip().rstrip('/') for origin in settings.cors_origins.split(",") if origin.strip()]
-        
-        # Always include the DigitalOcean dashboard origin (normalized - no trailing slash)
+            origins = [o.strip().rstrip("/") for o in settings.cors_origins.split(",") if o.strip()]
+        # Always include the DigitalOcean dashboard origin
         required_origin = "https://siloq-dashboard-vcoj8.ondigitalocean.app"
         if required_origin not in origins:
             origins.append(required_origin)
-        
         return origins if origins else [required_origin]
     else:
-        # Development: allow all origins
-        return ["*"]
+        # Development: explicit origins so credentials work (browsers reject '*' with credentials)
+        # if settings.cors_origins and settings.cors_origins.strip() != "*":
+        #     origins = [o.strip().rstrip("/") for o in settings.cors_origins.split(",") if o.strip()]
+        #     if origins:
+        #         return origins
+        # Default local origins: siloq-dashboard (3000), WordPress (8080), common dev ports
+        print("returning local origins=======================")
+        return [
+            "http://localhost:3000",
+            "http://127.0.0.1:3000",
+            "http://localhost:8080",
+            "http://127.0.0.1:8080",
+            "http://localhost:8081",
+            "http://127.0.0.1:8081",
+            'http://host.docker.internal:8000'
+        ]
 
 
 """Get CORS methods based on environment"""

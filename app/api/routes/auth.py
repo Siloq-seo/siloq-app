@@ -18,6 +18,11 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
+
+class VerifyResponse(BaseModel):
+    """Response for token/API key verification (WordPress Test Connection, dashboard)."""
+    authenticated: bool = True
+
 # Password hashing context
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -163,6 +168,19 @@ async def register(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Registration failed: {str(e)}",
         )
+
+
+@router.post("/verify", response_model=VerifyResponse)
+async def verify_token(
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Verify API token or JWT (no body required).
+    Used by WordPress "Test Connection" and dashboard to validate API URL + API Key.
+    Accepts: Authorization: Bearer <jwt-or-api-key> (e.g. sk-...).
+    Returns: { "authenticated": true } if valid, 401 if invalid.
+    """
+    return VerifyResponse(authenticated=True)
 
 
 @router.post("/login", response_model=LoginResponse)

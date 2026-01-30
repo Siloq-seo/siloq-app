@@ -71,6 +71,13 @@ The API will be available at:
 - **Local**: `http://localhost:8000/api/v1`
 - **Health check**: `http://localhost:8000/health`
 
+**Local CORS:** In development, the API allows these origins by default so the dashboard and WordPress can call it from the browser:
+- `http://localhost:3000`, `http://127.0.0.1:3000` (siloq-dashboard)
+- `http://localhost:8080`, `http://127.0.0.1:8080` (WordPress)
+- `http://localhost:8081`, `http://127.0.0.1:8081`
+
+To add more origins, set in `siloq-app/.env`: `CORS_ORIGINS=http://localhost:3000,http://localhost:8080`
+
 ### Step 3: Create a Site
 
 First, create a site in Siloq (you'll need authentication - for now we can skip auth for this step):
@@ -239,11 +246,14 @@ The system supports two authentication methods:
 - Verify the Site ID (UUID) is correct
 - Ensure the site exists in the database
 
-**Error: "Could not connect to server"**
+**Error: "Could not connect to server" / "Failed to connect to localhost port 8000"**
 - Check the API Base URL is correct
-- Ensure the backend is running
+- Ensure the Siloq backend is running (e.g. `uvicorn app.main:app --reload --host 0.0.0.0 --port 8000`)
+- **WordPress in Docker**: If WordPress runs inside a container, `localhost` inside the container is the container itself, not your host. Use:
+  - **Docker Desktop (Windows/Mac)**: `http://host.docker.internal:8000/api/v1`
+  - **Linux**: Use your host IP (e.g. `http://172.17.0.1:8000/api/v1`) or run WordPress and the API on the same network
 - Check firewall/network settings
-- Try the health endpoint: `http://localhost:8000/health`
+- Try the health endpoint from the machine running WordPress: `http://<api-host>:8000/health`
 
 ### Pages Not Syncing
 
