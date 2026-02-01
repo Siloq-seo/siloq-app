@@ -1,283 +1,76 @@
-# Scoring Algorithm - Bug Fixes Required
+# Scoring Algorithm - Bug Fixes ✅ RESOLVED
 
 **Reviewed by:** Arc (AI)  
-**Date:** January 31, 2026
-
-The JS implementation is solid but has these issues to fix before shipping:
-
----
-
-## 🐛 Bugs to Fix
-
-### 1. Cannibalization Caps Table Missing Entry
-
-**File:** `src/scoring/siloq-scoring-algorithm.js`  
-**Line:** ~15 (CONFIG.cannibalizationCaps)
-
-**Problem:** Table jumps from 4 to 6, missing entry for 5 conflicts.
-
-**Current:**
-```javascript
-cannibalizationCaps: [
-  [0, 100],
-  [1, 84],
-  [2, 79],
-  [3, 74],
-  [4, 69],
-  [6, 64],  // ← Jumps from 4 to 6
-  [9, 54],
-  [Infinity, 44]
-]
-```
-
-**Fix:**
-```javascript
-cannibalizationCaps: [
-  [0, 100],
-  [1, 84],
-  [2, 79],
-  [3, 74],
-  [4, 69],
-  [5, 64],  // ← Add this
-  [6, 64],
-  [9, 54],
-  [Infinity, 44]
-]
-```
+**Date:** January 31, 2026  
+**Status:** All bugs fixed in v1.1.1
 
 ---
 
-### 2. maxTotal Logic is Backwards
+## ✅ All Bugs Fixed
 
-**File:** `src/scoring/siloq-scoring-algorithm.js`  
-**Line:** ~185 (inside calculateScore, deduction loop)
+The following bugs were identified and fixed in `siloq-scoring-algorithm.js`:
 
-**Problem:** `maxTotal` values are negative (e.g., -20), so the comparison logic is inverted.
+### 1. ✅ Cap Table Missing Entry for 5 Conflicts — FIXED
+Added `[5, 64]` entry to `CONFIG.cannibalizationCaps`.
 
-**Current (buggy):**
-```javascript
-if (deductionDef.maxTotal) {
-  const key = issue.type;
-  deductionTracker[key] = (deductionTracker[key] || 0) + points;
-  if (deductionTracker[key] < deductionDef.maxTotal) {  // ← Wrong comparison
-    points = 0;
-  }
-  // ...
-}
-```
+### 2. ✅ maxTotal Logic Backwards — FIXED
+Rewrote the maxTotal deduction capping logic to correctly handle negative values.
 
-**Fix:**
-```javascript
-if (deductionDef.maxTotal) {
-  const key = issue.type;
-  const currentTotal = deductionTracker[key] || 0;
-  const newTotal = currentTotal + points;
-  
-  if (currentTotal <= deductionDef.maxTotal) {
-    // Already at max, no more deductions
-    points = 0;
-  } else if (newTotal < deductionDef.maxTotal) {
-    // Would exceed max, cap it
-    points = deductionDef.maxTotal - currentTotal;
-  }
-  
-  deductionTracker[key] = currentTotal + points;
-}
-```
+### 3. ✅ Grade Thresholds Need F Split — FIXED
+Added separate entries for F (40-49) and F-Severe (0-39) in `CONFIG.gradeThresholds`.
+
+### 4. ✅ SEO Category Score Doesn't Reflect Cannibalization — FIXED
+Updated `calculateCategoryScores()` to accept conflicts parameter and penalize SEO score (15 points per conflict, max 50).
+
+### 5. ✅ Missing detectDuplicates Function — FIXED
+Added `detectDuplicates()` function and integrated it into `processScan()`.
 
 ---
 
-### 3. Grade Thresholds Need F Split
+## Additional Improvements in v1.1.1
 
-**File:** `src/scoring/siloq-scoring-algorithm.js`  
-**Line:** ~55 (CONFIG.gradeThresholds)
-
-**Problem:** Per spec, 40-49 should be "F" and 0-39 should be "F (Severe)".
-
-**Current:**
-```javascript
-gradeThresholds: [
-  // ...
-  [50, 'D-', 'Critical Problems', '#ef4444'],
-  [0, 'F', 'Failing', '#dc2626']  // Only one F tier
-]
-```
-
-**Fix:**
-```javascript
-gradeThresholds: [
-  // ...
-  [50, 'D-', 'Critical Problems', '#ef4444'],
-  [40, 'F', 'Failing', '#ef4444'],
-  [0, 'F', 'Severe - Immediate Action', '#dc2626']
-]
-```
-
-**Also add second F message:**
-```javascript
-gradeMessages: {
-  // ... existing messages
-  'F': 'Severe problems require immediate action. Cannibalization is actively damaging your search visibility.',
-}
-```
-
-Note: The grade lookup will need to handle the F/Severe distinction based on score (0-39 vs 40-49).
+- Added input validation to `calculateScore()`
+- Added `estimatedPoints` to quick wins output
+- Added conflict detection thresholds to CONFIG for easier tuning
+- Changed duplicate_title category from 'content' to 'seo' for proper categorization
+- Improved quick wins sorting to include severity bonus
+- Added 13 comprehensive tests covering all edge cases
 
 ---
 
-### 4. SEO Category Score Doesn't Reflect Cannibalization
+## Running Tests
 
-**File:** `src/scoring/siloq-scoring-algorithm.js`  
-**Line:** ~380 (calculateCategoryScores function)
-
-**Problem:** Per spec, SEO category should have 50 points for "zero cannibalization". Current implementation doesn't penalize conflicts.
-
-**Fix:** Update `calculateCategoryScores` to accept conflicts:
-
-```javascript
-function calculateCategoryScores(deductions, bonuses, conflicts) {
-  const categories = {
-    technical: { score: 100, max: 100 },
-    content: { score: 100, max: 100 },
-    structure: { score: 100, max: 100 },
-    performance: { score: 100, max: 100 },
-    seo: { score: 100, max: 100 }
-  };
-
-  // Apply deductions to categories
-  deductions.forEach(ded => {
-    if (categories[ded.category]) {
-      categories[ded.category].score += ded.points;
-    }
-  });
-
-  // SEO category: penalize for cannibalization (50 points at stake)
-  if (conflicts.length > 0) {
-    const conflictPenalty = Math.min(50, conflicts.length * 15);
-    categories.seo.score -= conflictPenalty;
-  }
-
-  // Floor at 0
-  Object.keys(categories).forEach(key => {
-    categories[key].score = Math.max(0, categories[key].score);
-  });
-
-  return categories;
-}
-```
-
-Update the call site (~line 245):
-```javascript
-const categoryScores = calculateCategoryScores(appliedDeductions, appliedBonuses, conflicts);
-```
-
----
-
-### 5. Missing Duplicate Detection Function
-
-**Problem:** The spec mentions detecting duplicate title tags and meta descriptions across pages, but `processScan()` doesn't call a duplicate detection function.
-
-**Add new function:**
-```javascript
-function detectDuplicates(pages) {
-  const issues = [];
-  const titles = new Map();
-  const metas = new Map();
-  
-  pages.forEach(page => {
-    // Track titles
-    if (page.title) {
-      if (titles.has(page.title)) {
-        issues.push({ 
-          type: 'duplicate_title', 
-          url: page.url, 
-          duplicateOf: titles.get(page.title) 
-        });
-      } else {
-        titles.set(page.title, page.url);
-      }
-    }
-    
-    // Track meta descriptions
-    if (page.metaDescription && page.metaDescription.length > 20) {
-      if (metas.has(page.metaDescription)) {
-        issues.push({ 
-          type: 'duplicate_meta', 
-          url: page.url, 
-          duplicateOf: metas.get(page.metaDescription) 
-        });
-      } else {
-        metas.set(page.metaDescription, page.url);
-      }
-    }
-  });
-  
-  return issues;
-}
-```
-
-**Update `processScan()` (~line 475):**
-```javascript
-function processScan(crawlResult) {
-  const { url, pages, siteData, scanTime } = crawlResult;
-
-  let allIssues = [];
-  pages.forEach(page => {
-    const pageIssues = detectIssues(page);
-    allIssues = allIssues.concat(pageIssues);
-  });
-
-  // Add site-wide issues
-  const siteIssues = detectSiteIssues(siteData);
-  allIssues = allIssues.concat(siteIssues);
-
-  // Add duplicate detection
-  const duplicateIssues = detectDuplicates(pages);
-  allIssues = allIssues.concat(duplicateIssues);
-
-  // ... rest of function
-}
-```
-
-**Add to exports:**
-```javascript
-module.exports = {
-  // ... existing exports
-  detectDuplicates,
-};
-```
-
----
-
-## 🧪 Additional Test Cases Needed
-
-Add these tests to `siloq-scoring-tests.js`:
-
-### Test 6: Same Intent Multiplier
-Verify 1.3x multiplier applies to issues on conflicting pages.
-
-### Test 7: Bonus Cap
-Verify bonuses cap at +15 even if more are earned.
-
-### Test 8: Conflict Type Weighting  
-Verify exact_match (1.5x) results in lower cap than title_duplicate (0.75x).
-
-### Test 9: Score Floor
-Verify score never goes negative even with massive deductions.
-
-### Test 10: Schema Validation
-Verify API response contains all required fields.
-
----
-
-## ✅ After Fixes
-
-Run the test file:
 ```bash
-node src/scoring/siloq-scoring-tests.js
+cd src/scoring
+node siloq-scoring-tests.js
 ```
 
-All tests should pass. If Test 1 (crystallizedcouture) scores > 60, something is still wrong.
+All 13 tests should pass:
+
+1. ✅ Problem case (crystallizedcouture) scores < 60
+2. ✅ Clean site scores 95+
+3. ✅ Page count adjustment works
+4. ✅ Minor conflict (title_duplicate) weighted at 0.75x
+5. ✅ More conflicts = same or worse score (regression)
+6. ✅ Same intent multiplier (1.3x) applied
+7. ✅ Bonus cap enforced at 15
+8. ✅ Conflict type weighting (exact_match > title_duplicate)
+9. ✅ Score floor at 0
+10. ✅ API response schema complete
+11. ✅ detectDuplicates function works
+12. ✅ SEO category reflects cannibalization
+13. ✅ Cap for 5 conflicts is 64
+
+---
+
+## Ready for Review
+
+The algorithm is now ready for frontend integration. Key files:
+
+- `src/scoring/siloq-scoring-algorithm.js` — Main algorithm (v1.1.1)
+- `src/scoring/siloq-scoring-tests.js` — Test suite (13 tests)
+- `docs/scoring-algorithm-v1.1.md` — Full specification
+- `docs/dev-handoff-scoring.md` — Quick reference
 
 ---
 

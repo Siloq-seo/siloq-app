@@ -1,10 +1,18 @@
 /**
- * Siloq Lead Gen Scoring Algorithm v1.1
+ * Siloq Lead Gen Scoring Algorithm v1.1.1
  * 
  * Usage:
  *   const result = calculateScore(scanData);
  *   console.log(result.score.final); // 57
  *   console.log(result.score.grade); // "D-"
+ * 
+ * Changelog v1.1.1:
+ *   - Fixed: Cap table now includes entry for 5 conflicts
+ *   - Fixed: maxTotal logic for capped deductions (was backwards)
+ *   - Fixed: Grade thresholds split F into F (40-49) and F-Severe (0-39)
+ *   - Fixed: SEO category score now reflects cannibalization penalty
+ *   - Added: detectDuplicates() function for cross-page duplicate detection
+ *   - Added: Input validation
  */
 
 // =============================================================================
@@ -13,12 +21,14 @@
 
 const CONFIG = {
   // Cannibalization caps: [maxConflicts, capScore]
+  // FIXED: Added entry for 5 conflicts
   cannibalizationCaps: [
     [0, 100],
     [1, 84],
     [2, 79],
     [3, 74],
     [4, 69],
+    [5, 64],   // Added - was missing
     [6, 64],
     [9, 54],
     [Infinity, 44]
@@ -48,6 +58,7 @@ const CONFIG = {
   maxBonusPoints: 15,
 
   // Grade thresholds: [minScore, grade, label, color]
+  // FIXED: Split F into two tiers
   gradeThresholds: [
     [95, 'A+', 'Excellent', '#22c55e'],
     [90, 'A', 'Great', '#22c55e'],
@@ -58,7 +69,8 @@ const CONFIG = {
     [65, 'D+', 'Poor', '#f97316'],
     [60, 'D', 'Serious Issues', '#f97316'],
     [50, 'D-', 'Critical Problems', '#ef4444'],
-    [0, 'F', 'Failing', '#dc2626']
+    [40, 'F', 'Failing', '#ef4444'],
+    [0, 'F', 'Severe - Immediate Action', '#dc2626']
   ],
 
   // Grade messages
@@ -73,6 +85,16 @@ const CONFIG = {
     'D': 'Significant problems detected that are hurting your rankings. Immediate attention recommended.',
     'D-': 'Critical issues found. Your site is likely losing significant traffic due to these problems.',
     'F': 'Severe problems require immediate action. Cannibalization is actively damaging your search visibility.'
+  },
+
+  // Conflict detection thresholds
+  conflictDetection: {
+    titleSimilarityThreshold: 0.7,
+    h1SimilarityThreshold: 0.7,
+    urlSimilarityThreshold: 0.6,
+    metaSimilarityThreshold: 0.6,
+    exactMatchThreshold: 0.95,
+    minSignalsForConflict: 2
   }
 };
 
@@ -91,8 +113,8 @@ const DEDUCTIONS = {
   meta_description_missing: { points: -8, category: 'content', severity: 'medium', recommendation: 'Add a compelling meta description (70-160 characters)' },
   meta_description_too_short: { points: -4, category: 'content', severity: 'low', recommendation: 'Expand meta description to at least 70 characters' },
   meta_description_too_long: { points: -3, category: 'content', severity: 'low', recommendation: 'Shorten meta description to under 160 characters' },
-  duplicate_title: { points: -12, category: 'content', severity: 'high', recommendation: 'Create unique title tags for each page' },
-  duplicate_meta: { points: -6, category: 'content', severity: 'medium', recommendation: 'Create unique meta descriptions for each page' },
+  duplicate_title: { points: -12, category: 'seo', severity: 'high', recommendation: 'Create unique title tags for each page' },
+  duplicate_meta: { points: -6, category: 'seo', severity: 'medium', recommendation: 'Create unique meta descriptions for each page' },
   thin_content: { points: -8, category: 'content', severity: 'medium', recommendation: 'Expand content to at least 300 words' },
   very_thin_content: { points: -12, category: 'content', severity: 'high', recommendation: 'Expand content significantly (currently under 100 words)' },
 
@@ -141,6 +163,7 @@ const BONUSES = {
 
 const QUICK_WIN_PRIORITY = {
   'cannibalization': 100,
+  'duplicate_title': 90,
   'missing_h1': 80,
   'title_missing': 75,
   'title_too_short': 70,
@@ -149,6 +172,7 @@ const QUICK_WIN_PRIORITY = {
   'lcp_slow': 60,
   'heading_hierarchy_skipped': 50,
   'meta_description_missing': 40,
+  'duplicate_meta': 35,
   'default': 30
 };
 
@@ -162,15 +186,28 @@ const QUICK_WIN_PRIORITY = {
  * @returns {Object} Complete scoring result
  */
 function calculateScore(scanData) {
+  // Input validation
+  if (!scanData || typeof scanData !== 'object') {
+    throw new Error('scanData must be an object');
+  }
+
   const {
     url,
-    pagesAnalyzed,
+    pagesAnalyzed = 1,
     issues = [],
     conflicts = [],
     bonusesEarned = [],
     cwv = {},
     scanTime = null
   } = scanData;
+
+  if (!url) {
+    throw new Error('url is required');
+  }
+
+  if (pagesAnalyzed < 1) {
+    throw new Error('pagesAnalyzed must be at least 1');
+  }
 
   // Step 1: Start with 100
   let score = 100;
@@ -195,35 +232,50 @@ function calculateScore(scanData) {
     const deductionDef = DEDUCTIONS[issue.type];
     if (!deductionDef) return;
 
-    let points = deductionDef.points;
+    // Start with base points
+    let basePoints = deductionDef.points;
 
-    // Apply same-intent multiplier if issue is on a conflicting page
+    // Apply same-intent multiplier FIRST if issue is on a conflicting page
     if (issue.url && conflictingUrls.has(issue.url)) {
-      points = Math.round(points * CONFIG.sameIntentMultiplier);
+      basePoints = Math.round(basePoints * CONFIG.sameIntentMultiplier);
     }
 
-    // Handle max total cap (e.g., broken links max -20)
+    let points = basePoints;
+
+    // FIXED: Handle max total cap correctly (values are negative)
     if (deductionDef.maxTotal) {
       const key = issue.type;
-      deductionTracker[key] = (deductionTracker[key] || 0) + points;
-      if (deductionTracker[key] < deductionDef.maxTotal) {
-        points = 0; // Already hit max
-      } else if (deductionTracker[key] - points >= deductionDef.maxTotal) {
-        // This deduction would exceed max, cap it
-        points = deductionDef.maxTotal - (deductionTracker[key] - points);
+      const currentTotal = deductionTracker[key] || 0;
+      
+      // Check if we've already hit the max
+      if (currentTotal <= deductionDef.maxTotal) {
+        // Already at or past max, no more deductions for this type
+        points = 0;
+      } else {
+        // Calculate what we can still deduct
+        const remainingAllowance = currentTotal - deductionDef.maxTotal;
+        if (Math.abs(points) > remainingAllowance) {
+          // Would exceed max, cap it
+          points = -remainingAllowance;
+        }
       }
+      
+      // Update tracker
+      deductionTracker[key] = currentTotal + points;
     }
 
-    score += points; // points are negative
+    if (points !== 0) {
+      score += points; // points are negative
 
-    appliedDeductions.push({
-      type: issue.type,
-      category: deductionDef.category,
-      severity: deductionDef.severity,
-      points: points,
-      url: issue.url || null,
-      recommendation: deductionDef.recommendation
-    });
+      appliedDeductions.push({
+        type: issue.type,
+        category: deductionDef.category,
+        severity: deductionDef.severity,
+        points: points,
+        url: issue.url || null,
+        recommendation: deductionDef.recommendation
+      });
+    }
   });
 
   const scoreAfterDeductions = score;
@@ -270,8 +322,8 @@ function calculateScore(scanData) {
   // Generate Quick Wins
   const quickWins = generateQuickWins(conflicts, appliedDeductions);
 
-  // Calculate category scores (for display only)
-  const categoryScores = calculateCategoryScores(appliedDeductions, appliedBonuses);
+  // Calculate category scores (for display only) - FIXED: Now includes conflicts
+  const categoryScores = calculateCategoryScores(appliedDeductions, appliedBonuses, conflicts);
 
   return {
     scanId: generateId(),
@@ -285,7 +337,7 @@ function calculateScore(scanData) {
       grade: gradeInfo.grade,
       label: gradeInfo.label,
       color: gradeInfo.color,
-      message: CONFIG.gradeMessages[gradeInfo.grade]
+      message: CONFIG.gradeMessages[gradeInfo.grade] || CONFIG.gradeMessages['F']
     },
 
     calculationBreakdown: {
@@ -368,7 +420,7 @@ function getGrade(score) {
       return { grade, label, color };
     }
   }
-  return { grade: 'F', label: 'Failing', color: '#dc2626' };
+  return { grade: 'F', label: 'Severe - Immediate Action', color: '#dc2626' };
 }
 
 /**
@@ -384,15 +436,22 @@ function generateQuickWins(conflicts, deductions, maxWins = 5) {
       issue: 'Keyword Cannibalization',
       description: `${conflicts.length} page${conflicts.length > 1 ? 's are' : ' is'} competing for similar keywords`,
       recommendation: 'Consolidate pages or differentiate their keyword targeting',
-      impact: 'High'
+      impact: 'High',
+      estimatedPoints: '+15-25'
     });
   }
 
-  // Add other issues sorted by priority
+  // Add other issues sorted by priority AND severity
   const sortedDeductions = [...deductions].sort((a, b) => {
     const priorityA = QUICK_WIN_PRIORITY[a.type] || QUICK_WIN_PRIORITY.default;
     const priorityB = QUICK_WIN_PRIORITY[b.type] || QUICK_WIN_PRIORITY.default;
-    return priorityB - priorityA;
+    
+    // Add severity bonus to priority
+    const severityBonus = { critical: 20, high: 10, medium: 5, low: 0 };
+    const adjustedA = priorityA + (severityBonus[a.severity] || 0);
+    const adjustedB = priorityB + (severityBonus[b.severity] || 0);
+    
+    return adjustedB - adjustedA;
   });
 
   // Dedupe by type and add to wins
@@ -407,7 +466,8 @@ function generateQuickWins(conflicts, deductions, maxWins = 5) {
       issue: formatIssueName(ded.type),
       description: ded.url ? `Issue found on ${ded.url}` : 'Issue detected',
       recommendation: ded.recommendation,
-      impact: ded.severity === 'high' || ded.severity === 'critical' ? 'High' : 'Medium'
+      impact: ded.severity === 'high' || ded.severity === 'critical' ? 'High' : 'Medium',
+      estimatedPoints: `+${Math.abs(ded.points)}`
     });
   }
 
@@ -416,8 +476,9 @@ function generateQuickWins(conflicts, deductions, maxWins = 5) {
 
 /**
  * Calculate category scores for display
+ * FIXED: Now accepts conflicts and penalizes SEO category accordingly
  */
-function calculateCategoryScores(deductions, bonuses) {
+function calculateCategoryScores(deductions, bonuses, conflicts = []) {
   const categories = {
     technical: { score: 100, max: 100 },
     content: { score: 100, max: 100 },
@@ -432,6 +493,13 @@ function calculateCategoryScores(deductions, bonuses) {
       categories[ded.category].score += ded.points; // points are negative
     }
   });
+
+  // FIXED: SEO category should reflect cannibalization (50 points at stake per spec)
+  if (conflicts.length > 0) {
+    // Penalize 15 points per conflict, max 50
+    const conflictPenalty = Math.min(50, conflicts.length * 15);
+    categories.seo.score -= conflictPenalty;
+  }
 
   // Floor at 0
   Object.keys(categories).forEach(key => {
@@ -490,13 +558,14 @@ function detectConflicts(pages) {
  */
 function detectConflictBetweenPages(pageA, pageB) {
   const signals = [];
+  const thresholds = CONFIG.conflictDetection;
 
   // Check title similarity
   const titleSimilarity = calculateSimilarity(
     pageA.title?.toLowerCase() || '',
     pageB.title?.toLowerCase() || ''
   );
-  if (titleSimilarity > 0.7) {
+  if (titleSimilarity > thresholds.titleSimilarityThreshold) {
     signals.push('title_similarity');
   }
 
@@ -505,7 +574,7 @@ function detectConflictBetweenPages(pageA, pageB) {
     pageA.h1?.toLowerCase() || '',
     pageB.h1?.toLowerCase() || ''
   );
-  if (h1Similarity > 0.7) {
+  if (h1Similarity > thresholds.h1SimilarityThreshold) {
     signals.push('h1_similarity');
   }
 
@@ -513,7 +582,7 @@ function detectConflictBetweenPages(pageA, pageB) {
   const slugA = extractSlug(pageA.url);
   const slugB = extractSlug(pageB.url);
   const slugSimilarity = calculateSimilarity(slugA, slugB);
-  if (slugSimilarity > 0.6) {
+  if (slugSimilarity > thresholds.urlSimilarityThreshold) {
     signals.push('url_similarity');
   }
 
@@ -522,18 +591,19 @@ function detectConflictBetweenPages(pageA, pageB) {
     pageA.metaDescription?.toLowerCase() || '',
     pageB.metaDescription?.toLowerCase() || ''
   );
-  if (metaSimilarity > 0.6) {
+  if (metaSimilarity > thresholds.metaSimilarityThreshold) {
     signals.push('meta_similarity');
   }
 
   // Determine conflict type based on signals
-  if (signals.length >= 2) {
+  if (signals.length >= thresholds.minSignalsForConflict) {
     let type = 'intent_collision';
 
     // Exact title match = exact match conflict
-    if (titleSimilarity > 0.95) {
+    if (titleSimilarity > thresholds.exactMatchThreshold) {
       type = 'exact_match';
-    } else if (titleSimilarity > 0.7 || h1Similarity > 0.7) {
+    } else if (titleSimilarity > thresholds.titleSimilarityThreshold || 
+               h1Similarity > thresholds.h1SimilarityThreshold) {
       type = 'high_overlap';
     } else if (signals.includes('url_similarity')) {
       type = 'url_cannibalization';
@@ -715,6 +785,49 @@ function detectSiteIssues(siteData) {
 }
 
 /**
+ * ADDED: Detect duplicate titles and meta descriptions across pages
+ * @param {Array} pages - Array of page data objects
+ * @returns {Array} Array of duplicate issues
+ */
+function detectDuplicates(pages) {
+  const issues = [];
+  const titles = new Map();
+  const metas = new Map();
+
+  pages.forEach(page => {
+    // Track titles
+    if (page.title && page.title.trim().length > 0) {
+      const normalizedTitle = page.title.trim().toLowerCase();
+      if (titles.has(normalizedTitle)) {
+        issues.push({
+          type: 'duplicate_title',
+          url: page.url,
+          duplicateOf: titles.get(normalizedTitle)
+        });
+      } else {
+        titles.set(normalizedTitle, page.url);
+      }
+    }
+
+    // Track meta descriptions (only if substantial)
+    if (page.metaDescription && page.metaDescription.trim().length > 20) {
+      const normalizedMeta = page.metaDescription.trim().toLowerCase();
+      if (metas.has(normalizedMeta)) {
+        issues.push({
+          type: 'duplicate_meta',
+          url: page.url,
+          duplicateOf: metas.get(normalizedMeta)
+        });
+      } else {
+        metas.set(normalizedMeta, page.url);
+      }
+    }
+  });
+
+  return issues;
+}
+
+/**
  * Detect bonuses earned
  * @param {Object} siteData - Site-level data
  * @param {Array} pageIssues - All page issues
@@ -784,6 +897,10 @@ function processScan(crawlResult) {
   const siteIssues = detectSiteIssues(siteData);
   allIssues = allIssues.concat(siteIssues);
 
+  // ADDED: Detect cross-page duplicates
+  const duplicateIssues = detectDuplicates(pages);
+  allIssues = allIssues.concat(duplicateIssues);
+
   // Detect conflicts
   const conflicts = detectConflicts(pages);
 
@@ -812,6 +929,7 @@ module.exports = {
   detectConflicts,
   detectIssues,
   detectSiteIssues,
+  detectDuplicates,  // ADDED
   detectBonuses,
   processScan,
   CONFIG,
